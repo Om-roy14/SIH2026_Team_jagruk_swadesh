@@ -1,0 +1,5 @@
+bis_real_data/
+bis_pdfs/
+venv/
+__pycache__/
+*.pyc
