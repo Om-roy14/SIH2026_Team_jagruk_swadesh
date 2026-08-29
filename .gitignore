@@ -3,3 +3,12 @@ bis_pdfs/
 venv/
 __pycache__/
 *.pyc
+__pycache__/
+*.pyc
+
+.venv/
+venv/
+.env
+
+data/
+output/
