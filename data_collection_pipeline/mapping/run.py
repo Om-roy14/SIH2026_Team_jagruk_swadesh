@@ -1,3 +1,4 @@
+from pathlib import Path
 from .product_loader import (
     discover_products
 )
@@ -166,34 +167,36 @@ def main():
         "\n[7] Exporting..."
     )
 
+    output_dir = Path("data") / "mapped"
+
     save_json(
-        "products.json",
-        products
+        products,
+        output_dir / "products.json"
     )
 
     save_json(
-        "standards.json",
-        standards
+        standards,
+        output_dir / "standards.json"
     )
 
     save_json(
-        "qcos.json",
-        qcos
+        qcos,
+        output_dir / "qcos.json"
     )
 
     save_json(
-        "regulations.json",
-        regulations
+        regulations,
+        output_dir / "regulations.json"
     )
 
     save_json(
-        "relationships.json",
-        relationships
+        relationships,
+        output_dir / "relationships.json"
     )
 
     save_json(
-        "rag_records.json",
-        rag_records
+        rag_records,
+        output_dir / "rag_records.json"
     )
 
     # ========================================================
@@ -213,7 +216,7 @@ def main():
     )
 
     print(
-        f"\nProducts       : "
+        f"\nProducts      : "
         f"{len(products)}"
     )
 
@@ -223,7 +226,7 @@ def main():
     )
 
     print(
-        f"QCOs           : "
+        f"QCOs          : "
         f"{len(qcos)}"
     )
 
