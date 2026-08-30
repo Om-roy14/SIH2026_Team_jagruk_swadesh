@@ -1,814 +1,263 @@
+import os
 import json
+import uuid
 import hashlib
 from pathlib import Path
+import pypdf
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-)
-
+from qdrant_client.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer
-
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
-
-# Root data directory
-DATA_DIR = Path(
-    r"D:\SIH2026\data_collection_pipeline\data"
-)
-
-# Mapped data
-MAPPED_DIR = DATA_DIR / "mapped"
-
-# Raw scraped data
-RAW_DIR = DATA_DIR / "raw"
-
-# Qdrant Docker container
+DATA_DIR = Path(r"D:\SIH2026\data_collection_pipeline\data")
 QDRANT_URL = "http://localhost:6333"
-
 COLLECTION_NAME = "bis_knowledge"
-
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+
+# Files and folders to explicitly ignore to prevent noise
+IGNORE_KEYWORDS = [
+    "regulatory_manifest", 
+    "product_manual_archive", 
+    "bis_act"
+]
 
 # ============================================================
 # INITIALIZE
 # ============================================================
-
 print("=" * 70)
-print("BIS RAG INDEXER")
+print("BIS RAG OMNI-INGESTOR (JSON + PDF + RELATIONAL ENRICHMENT)")
 print("=" * 70)
 
-print("\nData root:")
-print(DATA_DIR)
+# Added timeout=60 to prevent network read timeouts
+client = QdrantClient(url=QDRANT_URL, timeout=60)
+model = SentenceTransformer(EMBEDDING_MODEL)
 
-print("\nMapped data:")
-print(MAPPED_DIR)
-
-print("\nRaw data:")
-print(RAW_DIR)
-
-
-# ============================================================
-# CONNECT TO QDRANT
-# ============================================================
-
-print("\nConnecting to Qdrant...")
-
-client = QdrantClient(
-    url=QDRANT_URL
-)
-
-print("Connected.")
-
-
-# ============================================================
-# LOAD EMBEDDING MODEL
-# ============================================================
-
-print("\nLoading embedding model...")
-
-model = SentenceTransformer(
-    EMBEDDING_MODEL
-)
-
-# New method
 try:
     VECTOR_SIZE = model.get_embedding_dimension()
 except AttributeError:
     VECTOR_SIZE = model.get_sentence_embedding_dimension()
 
-print(
-    f"Embedding model : {EMBEDDING_MODEL}"
-)
-
-print(
-    f"Vector dimension: {VECTOR_SIZE}"
-)
-
-
-# ============================================================
-# CREATE / RECREATE COLLECTION
-# ============================================================
-
-collections = [
-    collection.name
-    for collection in client.get_collections().collections
-]
-
+collections = [col.name for col in client.get_collections().collections]
 if COLLECTION_NAME in collections:
-
-    print(
-        f"\nDeleting existing collection: "
-        f"{COLLECTION_NAME}"
-    )
-
-    client.delete_collection(
-        collection_name=COLLECTION_NAME
-    )
-
-
-print(
-    f"\nCreating collection: "
-    f"{COLLECTION_NAME}"
-)
+    client.delete_collection(collection_name=COLLECTION_NAME)
 
 client.create_collection(
-
     collection_name=COLLECTION_NAME,
-
-    vectors_config=VectorParams(
-        size=VECTOR_SIZE,
-        distance=Distance.COSINE,
-    ),
+    vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
 )
-
+print("Connected to Qdrant. Clean collection created.")
 
 # ============================================================
 # HELPERS
 # ============================================================
+def make_uuid(text):
+    return str(uuid.UUID(hashlib.md5(text.encode("utf-8")).hexdigest()))
+
+def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += (chunk_size - overlap)
+    return chunks
 
 def load_json(path):
-    """
-    Safely load JSON.
-    """
-
     try:
-
-        with path.open(
-            "r",
-            encoding="utf-8"
-        ) as f:
-
+        with path.open("r", encoding="utf-8") as f:
             return json.load(f)
-
-    except UnicodeDecodeError:
-
-        try:
-
-            with path.open(
-                "r",
-                encoding="utf-8-sig"
-            ) as f:
-
-                return json.load(f)
-
-        except Exception as exc:
-
-            print(
-                f"[WARNING] Could not decode JSON: "
-                f"{path}"
-            )
-
-            print(
-                f"          {exc}"
-            )
-
-            return None
-
-    except json.JSONDecodeError as exc:
-
-        print(
-            f"[WARNING] Invalid JSON: {path}"
-        )
-
-        print(
-            f"          {exc}"
-        )
-
+    except Exception:
         return None
 
-    except OSError as exc:
-
-        print(
-            f"[WARNING] Could not read: {path}"
-        )
-
-        print(
-            f"          {exc}"
-        )
-
-        return None
-
-
-def make_id(text):
-
-    digest = hashlib.sha256(
-        text.encode("utf-8")
-    ).hexdigest()
-
-    return digest[:32]
-
-
-def stringify(value, level=0):
-
-    """
-    Convert arbitrary JSON data into
-    readable text for embedding.
-    """
-
-    if value is None:
-
-        return ""
-
-    if isinstance(value, str):
-
-        return value.strip()
-
-    if isinstance(value, bool):
-
-        return str(value)
-
-    if isinstance(value, (int, float)):
-
-        return str(value)
-
-    if isinstance(value, list):
-
-        parts = []
-
-        for item in value:
-
-            text = stringify(
-                item,
-                level + 1
-            )
-
-            if text:
-
-                parts.append(text)
-
-        return "\n".join(parts)
-
-    if isinstance(value, dict):
-
-        parts = []
-
-        for key, val in value.items():
-
-            text = stringify(
-                val,
-                level + 1
-            )
-
-            if text:
-
-                parts.append(
-                    f"{key}: {text}"
-                )
-
-        return "\n".join(parts)
-
-    return str(value)
-
+def clean_rag_noise(text):
+    """Removes massive arrays of unrelated IS standards from product text"""
+    clean_lines = []
+    for line in text.split('\n'):
+        if "Standards: IS" in line and len(line) > 200:
+            clean_lines.append("  [Detailed regulatory standard list omitted for clarity]")
+        else:
+            clean_lines.append(line)
+    return "\n".join(clean_lines)
 
 # ============================================================
-# RAG RECORD CONVERSION
+# PHASE 1: BUILD THE "BRAIN"
 # ============================================================
-
-def record_to_text(record):
-
-    """
-    Convert one mapped RAG record
-    into searchable text.
-    """
-
-    text_parts = []
-
-    # --------------------------------------------------------
-    # PRODUCT
-    # --------------------------------------------------------
-
-    product_name = record.get(
-        "product_name",
-        ""
-    )
-
-    product_id = record.get(
-        "product_id",
-        ""
-    )
-
-    text_parts.append(
-        "PRODUCT\n"
-        f"Product Name: {product_name}\n"
-        f"Product ID: {product_id}"
-    )
-
-    # --------------------------------------------------------
-    # PRODUCT DETAILS
-    # --------------------------------------------------------
-
-    product = record.get(
-        "product",
-        {}
-    )
-
-    if product:
-
-        text_parts.append(
-            "PRODUCT DETAILS\n"
-            + stringify(product)
-        )
-
-    # --------------------------------------------------------
-    # STANDARDS
-    # --------------------------------------------------------
-
-    standards = record.get(
-        "standards",
-        []
-    )
-
-    if standards:
-
-        text_parts.append(
-            "STANDARDS\n"
-            + stringify(standards)
-        )
-
-    # --------------------------------------------------------
-    # QCO
-    # --------------------------------------------------------
-
-    qcos = record.get(
-        "qcos",
-        []
-    )
-
-    if qcos:
-
-        text_parts.append(
-            "QUALITY CONTROL ORDERS (QCO)\n"
-            + stringify(qcos)
-        )
-
-    # --------------------------------------------------------
-    # REGULATIONS
-    # --------------------------------------------------------
-
-    regulations = record.get(
-        "regulations",
-        []
-    )
-
-    if regulations:
-
-        text_parts.append(
-            "REGULATIONS\n"
-            + stringify(regulations)
-        )
-
-    # --------------------------------------------------------
-    # RELATIONSHIPS
-    # --------------------------------------------------------
-
-    relationships = record.get(
-        "relationships",
-        []
-    )
-
-    if relationships:
-
-        text_parts.append(
-            "RELATIONSHIPS\n"
-            + stringify(relationships)
-        )
-
-    return "\n\n".join(
-        text_parts
-    )
-
-
-# ============================================================
-# LOAD MAPPED RAG DATA
-# ============================================================
-
-def load_mapped_records():
-
-    documents = []
-
-    rag_file = (
-        MAPPED_DIR /
-        "rag_records.json"
-    )
-
+def build_standard_to_product_map(data_dir):
+    """PHASE 1: Creates a dictionary linking IS Standards to Product Names."""
+    mapping = {}
+    rag_file = Path(data_dir) / "mapped" / "rag_records.json"
+    
     if not rag_file.exists():
-
-        print(
-            f"[WARNING] Missing mapped RAG file:\n"
-            f"{rag_file}"
-        )
-
-        return documents
-
-    print(
-        "\nLoading mapped RAG records:"
-    )
-
-    print(rag_file)
-
-    records = load_json(
-        rag_file
-    )
-
-    if not isinstance(
-        records,
-        list
-    ):
-
-        print(
-            "[WARNING] rag_records.json "
-            "does not contain a list."
-        )
-
-        return documents
-
-    print(
-        f"Mapped RAG records found: "
-        f"{len(records)}"
-    )
-
-    for index, record in enumerate(
-        records
-    ):
-
-        if not isinstance(
-            record,
-            dict
-        ):
-            continue
-
-        text = record_to_text(
-            record
-        )
-
-        if not text.strip():
-            continue
-
-        documents.append({
-
-            "text": text,
-
-            "source_type":
-                "mapped_rag",
-
-            "source_path":
-                str(rag_file),
-
-            "product_name":
-                record.get(
-                    "product_name"
-                ),
-
-            "product_id":
-                record.get(
-                    "product_id"
-                ),
-
-            "record_index":
-                index,
-
-        })
-
-    return documents
-
+        print(f"Warning: {rag_file} not found. Enrichment limited.")
+        return mapping
+        
+    records = load_json(rag_file)
+    if records:
+        for record in records:
+            product_name = record.get("product_name", "")
+            standards = record.get("standards", [])
+            for std in standards:
+                std_num = std.get("standard_number") if isinstance(std, dict) else str(std)
+                if std_num:
+                    mapping[std_num.strip()] = product_name
+                    # Also map base standard (e.g. "IS 368" from "IS 368:2014")
+                    mapping[std_num.split(':')[0].strip()] = product_name
+                        
+    print(f"Phase 1 Complete: Built map for {len(mapping)} standard variations.")
+    return mapping
 
 # ============================================================
-# LOAD ALL RAW JSON DATA
+# PHASES 2 & 3: TAG RAW DATA AND INJECT METADATA
 # ============================================================
-
-def load_raw_json_documents():
-
-    """
-    Load EVERY JSON file under data/raw.
-
-    This is important because the mapped RAG records
-    do not contain all scraped information.
-
-    For example:
-
-        license data
-        laboratory data
-        regulatory data
-        API responses
-        BIS records
-        etc.
-    """
-
+def extract_enriched_json(data, source_path, std_map):
     documents = []
-
-    if not RAW_DIR.exists():
-
-        print(
-            f"[WARNING] Raw directory does not exist:\n"
-            f"{RAW_DIR}"
-        )
-
+    
+    if isinstance(data, list):
+        for item in data:
+            documents.extend(extract_enriched_json(item, source_path, std_map))
         return documents
 
-    json_files = sorted(
-        RAW_DIR.rglob("*.json")
-    )
+    if isinstance(data, dict):
+        rec_type = None
+        text_parts = []
+        metadata = {"source_path": str(source_path)}
+        
+        # PHASE 2: Lookup Standard in the Brain
+        std_num = data.get("standardNumber") or data.get("standard_number") or ""
+        product_name = data.get("productName") or data.get("product_name") or ""
+        
+        if not product_name and std_num:
+            product_name = std_map.get(str(std_num).strip(), "")
+            if not product_name and ":" in str(std_num):
+                product_name = std_map.get(str(std_num).split(":")[0].strip(), "")
 
-    print(
-        "\nRaw JSON files discovered: "
-        f"{len(json_files)}"
-    )
+        metadata["standard_number"] = str(std_num)
+        metadata["product_name"] = str(product_name)
+        
+        # PHASE 3: Inject Structural Metadata into Text
+        if "labName" in data or "oslCode" in data:
+            rec_type = "laboratory"
+            metadata["lab_state"] = str(data.get("labState", ""))
+            text_parts = [
+                "TYPE: LABORATORY RECORD",
+                f"Related Product: {product_name}" if product_name else "",
+                f"Standard: {std_num}" if std_num else "",
+                f"Name: {data.get('labName', 'N/A')}",
+                f"Address: {data.get('labAddress', 'N/A')}, {data.get('labCity', '')}, {data.get('labState', '')}",
+                f"Contact: {data.get('contactPerson', 'N/A')} | {data.get('contactNumber', 'N/A')}"
+            ]
+            
+        elif "licenseNo" in data or "firmName" in data:
+            rec_type = "license"
+            text_parts = [
+                "TYPE: LICENCE RECORD",
+                f"Related Product: {product_name}" if product_name else "",
+                f"Standard: {std_num}" if std_num else "",
+                f"Firm Name: {data.get('firmName', 'N/A')}",
+                f"License Number: {data.get('licenseNo', 'N/A')}",
+                f"Address: {data.get('firmAddress', 'N/A')}, {data.get('state', '')}",
+                f"Validity: {data.get('validityDate', 'N/A')}"
+            ]
 
-    for path in json_files:
-
-        data = load_json(
-            path
-        )
-
-        if data is None:
-            continue
-
-        text = stringify(
-            data
-        )
-
-        if not text.strip():
-            continue
-
-        # Add filename/path context.
-        document_text = (
-            "BIS RAW SCRAPED DATA\n\n"
-            f"FILE: {path.name}\n"
-            f"PATH: {path}\n\n"
-            f"{text}"
-        )
-
-        documents.append({
-
-            "text":
-                document_text,
-
-            "source_type":
-                "raw_json",
-
-            "source_path":
-                str(path),
-
-            "product_name":
-                None,
-
-            "product_id":
-                None,
-
-            "record_index":
-                None,
-
-        })
-
-        print(
-            f"  Loaded: {path}"
-        )
+        text_parts = [p for p in text_parts if p]
+        if rec_type and len(text_parts) > 1:
+            metadata["type"] = rec_type
+            documents.append({"text": "\n".join(text_parts), "metadata": metadata})
+        else:
+            for key, value in data.items():
+                if isinstance(value, (dict, list)):
+                    documents.extend(extract_enriched_json(value, source_path, std_map))
 
     return documents
 
+# ============================================================
+# MAIN EXTRACTION ENGINE
+# ============================================================
+std_map = build_standard_to_product_map(DATA_DIR)
+
+all_documents = []
+stats = {"mapped_products": 0, "laboratories": 0, "licenses": 0, "pdf_chunks": 0}
+
+print("\nExtracting Files...")
+files = list(DATA_DIR.rglob("*.*"))
+
+for path in files:
+    if any(ignore in str(path).lower() for ignore in IGNORE_KEYWORDS):
+        continue
+
+    rel_path = str(path.relative_to(DATA_DIR))
+
+    # 1. Cleaned Mapped Products
+    if path.name == "rag_records.json":
+        records = load_json(path)
+        if records:
+            for record in records:
+                clean_text = clean_rag_noise(record.get("text", ""))
+                all_documents.append({
+                    "text": f"TYPE: PRODUCT_MAPPING\n{clean_text}",
+                    "metadata": {"type": "product_mapping", "product_name": record.get("product_name"), "source_path": rel_path}
+                })
+                stats["mapped_products"] += 1
+
+    # 2. Enriched Raw JSON
+    elif path.suffix == ".json" and path.name != "rag_records.json":
+        data = load_json(path)
+        if data:
+            docs = extract_enriched_json(data, rel_path, std_map)
+            for d in docs:
+                stats[d["metadata"]["type"]] = stats.get(d["metadata"]["type"], 0) + 1
+            all_documents.extend(docs)
+
+    # 3. PDF Parsing
+    elif path.suffix == ".pdf":
+        try:
+            with open(path, 'rb') as f:
+                reader = pypdf.PdfReader(f)
+                full_text = "".join([page.extract_text() or "" for page in reader.pages]).strip()
+            
+            if full_text:
+                chunks = chunk_text(full_text)
+                for i, chunk in enumerate(chunks):
+                    all_documents.append({
+                        "text": f"TYPE: BIS_PDF_DOCUMENT\nSource: {path.name}\n\n{chunk}",
+                        "metadata": {"type": "pdf_document", "source_path": rel_path, "chunk_index": i}
+                    })
+                    stats["pdf_chunks"] += 1
+        except Exception:
+            pass
+
+print("\nExtraction Complete Breakdown:")
+for k, v in stats.items():
+    print(f" - {k.upper()}: {v}")
+
+if not all_documents:
+    raise RuntimeError("No documents were parsed successfully.")
 
 # ============================================================
-# LOAD ALL DATA
+# CREATE EMBEDDINGS & UPLOAD
 # ============================================================
+print(f"\nCreating Embeddings for {len(all_documents)} chunks...")
+texts = [doc["text"] for doc in all_documents]
+embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=True)
+
+print("Uploading to Qdrant (in safe batches of 50)...")
+points = []
+for index, (doc, emb) in enumerate(zip(all_documents, embeddings)):
+    point_id = make_uuid(doc["text"] + str(index))
+    points.append(PointStruct(id=point_id, vector=emb.tolist(), payload={"text": doc["text"], **doc["metadata"]}))
+
+# Safer batch size of 50 to avoid timeout
+for i in range(0, len(points), 50):
+    batch = points[i:i+50]
+    client.upsert(collection_name=COLLECTION_NAME, points=batch)
+    print(f"Uploaded batch {i} to {i+len(batch)} / {len(points)}")
 
 print("\n" + "=" * 70)
-print("LOADING KNOWLEDGE")
+print(f"INDEXING COMPLETED SUCCESSFULLY. Stored {len(points)} vectors.")
 print("=" * 70)
-
-
-mapped_documents = (
-    load_mapped_records()
-)
-
-raw_documents = (
-    load_raw_json_documents()
-)
-
-
-documents = (
-    mapped_documents +
-    raw_documents
-)
-
-
-print(
-    "\nMapped documents : "
-    f"{len(mapped_documents)}"
-)
-
-print(
-    "Raw JSON documents: "
-    f"{len(raw_documents)}"
-)
-
-print(
-    "TOTAL DOCUMENTS   : "
-    f"{len(documents)}"
-)
-
-
-if not documents:
-
-    raise RuntimeError(
-        "No documents were found to index."
-    )
-
-
-# ============================================================
-# PREPARE TEXT
-# ============================================================
-
-texts = [
-    document["text"]
-    for document in documents
-]
-
-
-# ============================================================
-# CREATE EMBEDDINGS
-# ============================================================
-
-print(
-    "\n" + "=" * 70
-)
-
-print(
-    "CREATING EMBEDDINGS"
-)
-
-print(
-    "=" * 70
-)
-
-embeddings = model.encode(
-
-    texts,
-
-    normalize_embeddings=True,
-
-    show_progress_bar=True,
-)
-
-
-# ============================================================
-# BUILD QDRANT POINTS
-# ============================================================
-
-points = []
-
-
-for index, (
-    document,
-    embedding
-) in enumerate(
-    zip(
-        documents,
-        embeddings
-    )
-):
-
-    point_id = make_id(
-
-        f"{document['source_path']}"
-        f"_{document['record_index']}"
-        f"_{index}"
-
-    )
-
-    points.append(
-
-        PointStruct(
-
-            id=point_id,
-
-            vector=embedding.tolist(),
-
-            payload={
-
-                "text":
-                    document["text"],
-
-                "source_type":
-                    document[
-                        "source_type"
-                    ],
-
-                "source_path":
-                    document[
-                        "source_path"
-                    ],
-
-                "product_name":
-                    document[
-                        "product_name"
-                    ],
-
-                "product_id":
-                    document[
-                        "product_id"
-                    ],
-
-                "record_index":
-                    document[
-                        "record_index"
-                    ],
-
-            }
-
-        )
-    )
-
-
-# ============================================================
-# UPLOAD TO QDRANT
-# ============================================================
-
-print(
-    "\n" + "=" * 70
-)
-
-print(
-    f"UPLOADING {len(points)} "
-    f"POINTS TO QDRANT"
-)
-
-print(
-    "=" * 70
-)
-
-
-client.upsert(
-
-    collection_name=
-        COLLECTION_NAME,
-
-    points=points,
-
-    wait=True,
-)
-
-
-# ============================================================
-# VERIFY
-# ============================================================
-
-collection_info = client.get_collection(
-    COLLECTION_NAME
-)
-
-
-# ============================================================
-# FINAL OUTPUT
-# ============================================================
-
-print(
-    "\n" + "=" * 70
-)
-
-print(
-    "INDEXING COMPLETED"
-)
-
-print(
-    "=" * 70
-)
-
-print(
-    f"Collection : "
-    f"{COLLECTION_NAME}"
-)
-
-print(
-    f"Mapped docs: "
-    f"{len(mapped_documents)}"
-)
-
-print(
-    f"Raw docs   : "
-    f"{len(raw_documents)}"
-)
-
-print(
-    f"Total docs : "
-    f"{len(points)}"
-)
-
-print(
-    f"Vector size: "
-    f"{VECTOR_SIZE}"
-)
-
-print(
-    f"Qdrant     : "
-    f"{QDRANT_URL}"
-)
-
-print(
-    "=" * 70
-)
