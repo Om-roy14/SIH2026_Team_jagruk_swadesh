@@ -2,6 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./App.css";
+import Input from "./input";
 
 function App() {
     const [question, setQuestion] = useState("");
@@ -12,8 +13,6 @@ function App() {
         if (!question.trim() || loading) return;
 
         const userQuestion = question.trim();
-
-        // Add user's message immediately
         setMessages((prev) => [
             ...prev,
             {
@@ -47,7 +46,6 @@ function App() {
                 );
             }
 
-            // Add AI response
             setMessages((prev) => [
                 ...prev,
                 {
@@ -80,8 +78,6 @@ function App() {
 
     return (
         <div className="app">
-
-            {/* Header */}
             <header className="header">
                 <div className="logo">
                     BIS AI
@@ -93,11 +89,8 @@ function App() {
                 </div>
             </header>
 
-
-            {/* Chat Area */}
             <main className="chat-container">
 
-                {/* Empty screen */}
                 {messages.length === 0 && !loading && (
                     <div className="welcome">
 
@@ -113,42 +106,7 @@ function App() {
                             Ask questions about BIS standards,
                             certification, laboratories and licences.
                         </p>
-
-                        <div className="suggestions">
-
-                            <button
-                                onClick={() =>
-                                    setQuestion(
-                                        "What is the BIS standard for pressure cookers?"
-                                    )
-                                }
-                            >
-                                What is the BIS standard for pressure cookers?
-                            </button>
-
-                            <button
-                                onClick={() =>
-                                    setQuestion(
-                                        "Which laboratories can test my pressure cooker?"
-                                    )
-                                }
-                            >
-                                Find testing laboratories
-                            </button>
-
-                            <button
-                                onClick={() =>
-                                    setQuestion(
-                                        "How do I get BIS certification for a pressure cooker?"
-                                    )
-                                }
-                            >
-                                How do I get BIS certification?
-                            </button>
-
                         </div>
-
-                    </div>
                 )}
 
 
@@ -228,41 +186,13 @@ function App() {
 
             </main>
 
-
-            {/* Input */}
-            <div className="input-area">
-
-                <div className="input-box">
-
-                    <textarea
-                        value={question}
-                        onChange={(e) =>
-                            setQuestion(e.target.value)
-                        }
-                        onKeyDown={handleKeyDown}
-                        placeholder="Ask BIS AI anything..."
-                        rows="1"
-                        disabled={loading}
-                    />
-
-                    <button
-                        className="send-button"
-                        onClick={sendMessage}
-                        disabled={
-                            loading ||
-                            !question.trim()
-                        }
-                    >
-                        ↑
-                    </button>
-
-                </div>
-
-                <p className="input-hint">
-                    Press Enter to send · Shift + Enter for a new line
-                </p>
-
-            </div>
+                    <Input
+            question={question}
+            setQuestion={setQuestion}
+            handleKeyDown={handleKeyDown}
+            loading={loading}
+            sendMessage={sendMessage}
+                />
 
         </div>
     );
