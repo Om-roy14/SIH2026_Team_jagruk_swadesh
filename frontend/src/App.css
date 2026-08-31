@@ -1,0 +1,625 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+    background: #0f1117;
+    color: #f5f5f5;
+}
+
+button,
+textarea {
+    font-family: inherit;
+}
+
+
+/* =========================
+   APP
+========================= */
+
+.app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #0f1117;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+.header {
+    height: 64px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 28px;
+
+    border-bottom: 1px solid #252833;
+
+    background: rgba(15, 17, 23, 0.95);
+}
+
+.logo {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+
+    background: #35d07f;
+}
+
+
+/* =========================
+   CHAT CONTAINER
+========================= */
+
+.chat-container {
+    flex: 1;
+
+    width: 100%;
+    max-width: 900px;
+
+    margin: 0 auto;
+
+    padding: 40px 20px 150px;
+}
+
+
+/* =========================
+   WELCOME
+========================= */
+
+.welcome {
+    min-height: 60vh;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    text-align: center;
+}
+
+.welcome-icon {
+    width: 64px;
+    height: 64px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 18px;
+
+    background: #20242f;
+
+    font-weight: 800;
+    font-size: 17px;
+
+    margin-bottom: 20px;
+}
+
+.welcome h1 {
+    margin: 0;
+
+    font-size: 34px;
+    font-weight: 700;
+}
+
+.welcome p {
+    max-width: 550px;
+
+    margin-top: 12px;
+
+    color: #9ca3af;
+
+    line-height: 1.6;
+}
+
+
+/* =========================
+   SUGGESTIONS
+========================= */
+
+.suggestions {
+    display: flex;
+    flex-wrap: wrap;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    margin-top: 28px;
+}
+
+.suggestions button {
+    padding: 12px 16px;
+
+    border: 1px solid #2b303c;
+    border-radius: 12px;
+
+    background: #171a22;
+
+    color: #d7d9df;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.suggestions button:hover {
+    background: #20242e;
+    border-color: #3b4252;
+}
+
+
+/* =========================
+   MESSAGE
+========================= */
+
+.messages {
+    display: flex;
+    flex-direction: column;
+
+    gap: 32px;
+}
+
+.message-row {
+    display: flex;
+
+    gap: 14px;
+
+    width: 100%;
+}
+
+.message-row.user {
+    align-items: flex-start;
+}
+
+.message-row.assistant {
+    align-items: flex-start;
+}
+
+
+/* =========================
+   AVATAR
+========================= */
+
+.avatar {
+    flex-shrink: 0;
+
+    width: 36px;
+    height: 36px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    background: #20242f;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+
+/* =========================
+   MESSAGE CONTENT
+========================= */
+
+.message-content {
+    min-width: 0;
+
+    max-width: 780px;
+
+    flex: 1;
+}
+
+.user-message {
+    display: inline-block;
+
+    padding: 12px 16px;
+
+    border-radius: 14px;
+
+    background: #252a35;
+
+    color: #f5f5f5;
+
+    line-height: 1.6;
+}
+
+
+/* =========================
+   MARKDOWN
+========================= */
+
+.markdown {
+    color: #e7e9ee;
+
+    font-size: 15px;
+
+    line-height: 1.7;
+}
+
+
+/* Headings */
+
+.markdown h1 {
+    font-size: 26px;
+    margin: 0 0 18px;
+}
+
+.markdown h2 {
+    font-size: 21px;
+    margin: 28px 0 12px;
+}
+
+.markdown h3 {
+    font-size: 17px;
+    margin: 22px 0 10px;
+}
+
+
+/* Paragraph */
+
+.markdown p {
+    margin: 10px 0;
+}
+
+
+/* Bold */
+
+.markdown strong {
+    font-weight: 700;
+    color: #ffffff;
+}
+
+
+/* Lists */
+
+.markdown ul,
+.markdown ol {
+    padding-left: 25px;
+
+    margin: 10px 0;
+}
+
+.markdown li {
+    margin: 6px 0;
+}
+
+
+/* =========================
+   TABLE
+========================= */
+
+.markdown table {
+    width: 100%;
+
+    border-collapse: collapse;
+
+    margin: 20px 0;
+
+    font-size: 14px;
+
+    display: block;
+
+    overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+    border: 1px solid #303542;
+
+    padding: 10px 12px;
+
+    text-align: left;
+
+    white-space: normal;
+}
+
+.markdown th {
+    background: #20242e;
+
+    font-weight: 700;
+
+    color: #ffffff;
+}
+
+.markdown tr:nth-child(even) {
+    background: #171a21;
+}
+
+
+/* =========================
+   CODE
+========================= */
+
+.markdown code {
+    padding: 2px 6px;
+
+    border-radius: 6px;
+
+    background: #20242d;
+
+    font-family: monospace;
+
+    font-size: 13px;
+}
+
+.markdown pre {
+    overflow-x: auto;
+
+    padding: 16px;
+
+    border-radius: 12px;
+
+    background: #171a21;
+
+    border: 1px solid #292e39;
+}
+
+.markdown pre code {
+    padding: 0;
+
+    background: transparent;
+}
+
+
+/* =========================
+   HORIZONTAL LINE
+========================= */
+
+.markdown hr {
+    border: 0;
+
+    border-top: 1px solid #2a2f39;
+
+    margin: 24px 0;
+}
+
+
+/* =========================
+   LINKS
+========================= */
+
+.markdown a {
+    color: #8ab4ff;
+
+    text-decoration: none;
+}
+
+.markdown a:hover {
+    text-decoration: underline;
+}
+
+
+/* =========================
+   LOADING
+========================= */
+
+.loading-message {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    color: #9ca3af;
+
+    padding: 10px 0;
+}
+
+.loading-spinner {
+    width: 18px;
+    height: 18px;
+
+    border: 2px solid #343945;
+    border-top: 2px solid #ffffff;
+
+    border-radius: 50%;
+
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+/* =========================
+   INPUT AREA
+========================= */
+
+.input-area {
+    position: fixed;
+
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    padding: 16px 20px 20px;
+
+    background:
+        linear-gradient(
+            to top,
+            #0f1117 70%,
+            transparent
+        );
+}
+
+.input-box {
+    max-width: 900px;
+
+    margin: 0 auto;
+
+    display: flex;
+
+    align-items: flex-end;
+
+    gap: 10px;
+
+    padding: 10px;
+
+    border: 1px solid #303541;
+
+    border-radius: 18px;
+
+    background: #171a22;
+
+    box-shadow:
+        0 10px 35px rgba(0, 0, 0, 0.3);
+}
+
+.input-box textarea {
+    flex: 1;
+
+    resize: none;
+
+    max-height: 150px;
+
+    padding: 10px;
+
+    border: none;
+
+    outline: none;
+
+    background: transparent;
+
+    color: #ffffff;
+
+    font-size: 15px;
+
+    line-height: 1.5;
+}
+
+.input-box textarea::placeholder {
+    color: #707783;
+}
+
+
+/* =========================
+   SEND BUTTON
+========================= */
+
+.send-button {
+    width: 38px;
+    height: 38px;
+
+    flex-shrink: 0;
+
+    border: none;
+
+    border-radius: 11px;
+
+    background: #ffffff;
+
+    color: #111318;
+
+    font-size: 21px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.send-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.send-button:disabled {
+    opacity: 0.35;
+
+    cursor: not-allowed;
+}
+
+
+/* =========================
+   INPUT HINT
+========================= */
+
+.input-hint {
+    max-width: 900px;
+
+    margin: 8px auto 0;
+
+    text-align: center;
+
+    font-size: 11px;
+
+    color: #626875;
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 600px) {
+
+    .header {
+        padding: 0 16px;
+    }
+
+    .status {
+        display: none;
+    }
+
+    .chat-container {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .welcome h1 {
+        font-size: 28px;
+    }
+
+    .suggestions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .suggestions button {
+        width: 100%;
+    }
+
+    .message-content {
+        max-width: calc(100vw - 70px);
+    }
+
+    .markdown {
+        font-size: 14px;
+    }
+}
