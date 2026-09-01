@@ -1,4 +1,4 @@
-from chat import search_knowledge
+
 
 from openai import OpenAI
 import os
@@ -841,5 +841,4 @@ def filter_user_query(query):
         return result
 
     
-
     

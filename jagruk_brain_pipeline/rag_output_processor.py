@@ -1,5 +1,5 @@
-from chat import search_knowledge
-from user_query import filter_user_query
+from RAG.chat import search_knowledge
+
 from openai import OpenAI
 import os
 import json
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("API_KEY")
+api_key =os.getenv("API_KEY")
 
 client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
 SYSTEM_PROMPT="""You are the BIS Regulatory & Certification Assistant.
@@ -1080,25 +1080,26 @@ Every sentence must contribute useful information.
 """
 
 
-while True:
-    print("\n")
-    print("*"*100)
-    query = input("\nEnter your SAWAAL: ")
-    new_query=filter_user_query(query)
-    rag_response=search_knowledge(new_query)
+def rag_response(query):
+      while True:
+            print("\n")
+            print("*"*100)
+            rag_response=search_knowledge(query)
 
-    if query.lower() == "exit":
-        print("\nThank you for using the om's persna Agent!")
-        break
+            if query.lower() == "exit":
+                  print("\nThank you for using the om's persna Agent!")
+                  break
 
-    response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Review: {rag_response}"}
-        ]
-    )
+            response = client.chat.completions.create(
+                  model="openai/gpt-oss-120b",
+                  messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": f"Review: {rag_response}"}
+                  ]
+            )
 
-    result = response.choices[0].message.content.strip()
-    print("\n\n")
-    print(f"JAWAAB: {result}")
+            result = response.choices[0].message.content.strip()
+            # print("\n\n")
+            # print(f"JAWAAB: {result}")
+            return result
+            
