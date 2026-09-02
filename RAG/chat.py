@@ -1,6 +1,8 @@
 from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from sentence_transformers import SentenceTransformer
 import re
+
 
 # ============================================================
 # CONFIGURATION
@@ -10,18 +12,20 @@ QDRANT_URL = "http://localhost:6333"
 COLLECTION_NAME = "bis_knowledge"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
-# Number of candidates retrieved from Qdrant
+# Normal semantic retrieval
 RETRIEVAL_LIMIT = 8
 
-# Maximum number of useful results sent back
+# Maximum results for normal queries
 MAX_RESULTS = 4
 
-# Maximum characters allowed in the final RAG context
-# ~12,000 characters is roughly 3,000 tokens depending on text.
+# Maximum characters allowed in final context
 MAX_CONTEXT_CHARS = 12000
 
-# Maximum size of a single retrieved document
+# Maximum size of one document
 MAX_DOCUMENT_CHARS = 5000
+
+# Exhaustive retrieval batch size
+SCROLL_BATCH_SIZE = 256
 
 
 # ============================================================
@@ -91,12 +95,13 @@ def normalize(text):
 
 
 # ============================================================
-# PRODUCT DETECTION
+# PRODUCT ALIASES
 # ============================================================
 
 PRODUCT_ALIASES = {
 
-    "helmet": "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)",
+    "helmet":
+        "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)",
 
     "motorcycle helmet":
         "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)",
@@ -105,6 +110,9 @@ PRODUCT_ALIASES = {
         "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)",
 
     "pressure cooker":
+        "domestic_pressure_cooker_-_specification_(seventh_revision)",
+
+    "pressure cookers":
         "domestic_pressure_cooker_-_specification_(seventh_revision)",
 
     "immersion rod":
@@ -137,14 +145,8 @@ PRODUCT_ALIASES = {
     "packaged drinking water":
         "packaged_drinking_water_other_than_packaged_natural_mineral_water_specification_third_revision",
 
-    "helmet":
-        "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)",
-
     "refrigerator":
         "refrigerator_or_combined_refrigerator_and_water-pack_freezer_intermittent_mains_powered_-_compression_cycle_-_general_requirements_and_test_methods",
-
-    "air conditioner":
-        "room_air_conditioners_specification_part_1_unitary_air_conditioners_fourth_revision",
 
     "air conditioner":
         "room_air_conditioners_specification_part_1_unitary_air_conditioners_fourth_revision",
@@ -158,7 +160,13 @@ PRODUCT_ALIASES = {
     "electric toy":
         "safety_of_electric_toys",
 
+    "electric toys":
+        "safety_of_electric_toys",
+
     "tyre cord":
+        "textiles_polyamide_tyre_cord_fabric_for_automotive_tyres_specification_(first_revision)",
+
+    "tyre cord fabric":
         "textiles_polyamide_tyre_cord_fabric_for_automotive_tyres_specification_(first_revision)",
 
     "pvc pipe":
@@ -172,30 +180,97 @@ PRODUCT_ALIASES = {
 }
 
 
+# ============================================================
+# PRODUCT DETECTION
+# ============================================================
+
 def detect_product(query):
     """
-    Detect one of the supported products from the user's query.
+    Detect one supported product from the query.
     """
 
     q = normalize(query)
 
-    # Check common aliases first
-    for alias, product in PRODUCT_ALIASES.items():
+    # Check aliases first
+    # Longest aliases first prevents short aliases
+    # from matching too early.
+    aliases = sorted(
+        PRODUCT_ALIASES.items(),
+        key=lambda x: len(normalize(x[0])),
+        reverse=True
+    )
+
+    for alias, product in aliases:
 
         if normalize(alias) in q:
-
             return product
 
-    # Check full product names
+    # Check complete product names
     for product in ALLOWED_PRODUCTS:
 
         readable = normalize(product)
 
         if readable in q:
-
             return product
 
     return None
+
+
+# ============================================================
+# PRODUCT DISPLAY NAME
+# ============================================================
+
+PRODUCT_DISPLAY_NAMES = {
+
+    "domestic_pressure_cooker_-_specification_(seventh_revision)":
+        "Domestic Pressure Cooker",
+
+    "domestic_gas_stove_and_built_in_hob_for_use_with_lpg_specification_(sixth_revision_)":
+        "Domestic Gas Stove and Built-In Hob",
+
+    "electric_immersion_water_heaters_-_specification_(fifth_revision)":
+        "Electric Immersion Water Heaters",
+
+    "electric_iron_-_specification_(fourth_revision)":
+        "Electric Iron",
+
+    "ordinary_portland_cement_-_specification_(sixth_revision)":
+        "Ordinary Portland Cement",
+
+    "packaged_drinking_water_other_than_packaged_natural_mineral_water_specification_third_revision":
+        "Packaged Drinking Water",
+
+    "protective_helmets_for_motorcycle_riders_-_specification_(fourth_revision)":
+        "Protective Helmets for Motorcycle Riders",
+
+    "refrigerator_or_combined_refrigerator_and_water-pack_freezer_intermittent_mains_powered_-_compression_cycle_-_general_requirements_and_test_methods":
+        "Refrigerator / Combined Refrigerator and Water-Pack Freezer",
+
+    "room_air_conditioners_specification_part_1_unitary_air_conditioners_fourth_revision":
+        "Room Air Conditioners",
+
+    "safety_glass_-_specification_part_1_architectural,_building_and_general_uses_(fourth_revision)":
+        "Safety Glass",
+
+    "safety_of_electric_toys":
+        "Safety of Electric Toys",
+
+    "textiles_polyamide_tyre_cord_fabric_for_automotive_tyres_specification_(first_revision)":
+        "Polyamide Tyre Cord Fabric",
+
+    "unplasticized_pvc_pipes_for_potable_water_supplies_-_specification_(fourth_revision)":
+        "Unplasticized PVC Pipes for Potable Water Supplies",
+
+    "valve_for_compressed_gas_cylinders_excluding_liquefied_petroleum_gas_(lpg)_cylinders_-_specification_(fourth_revision)":
+        "Valve for Compressed Gas Cylinders",
+}
+
+
+def display_product_name(product):
+    return PRODUCT_DISPLAY_NAMES.get(
+        product,
+        product
+    )
 
 
 # ============================================================
@@ -217,8 +292,7 @@ NOISY_TERMS = [
 
 def is_noisy_document(payload):
     """
-    Detect large archive/index documents that commonly
-    contain hundreds of unrelated standards.
+    Detect large archive/index documents.
     """
 
     text = payload.get(
@@ -235,14 +309,11 @@ def is_noisy_document(payload):
 
     text_lower = text.lower()
 
-    # Archive / manifest documents
     for source_name in NOISY_SOURCES:
 
         if source_name in source:
-
             return True
 
-    # Huge documents containing massive IS-number lists
     is_numbers = re.findall(
         r"\bIS\s*\d+(?::\d{4})?\b",
         text,
@@ -250,14 +321,11 @@ def is_noisy_document(payload):
     )
 
     if len(is_numbers) > 80:
-
         return True
 
-    # API noise
     for term in NOISY_TERMS:
 
         if term in text_lower:
-
             return True
 
     return False
@@ -268,13 +336,11 @@ def is_noisy_document(payload):
 # ============================================================
 
 def product_matches(payload, product):
-    """
-    Check whether a Qdrant payload belongs to the
-    resolved product.
-    """
 
     if not product:
         return True
+
+    target = normalize(product)
 
     product_name = normalize(
         payload.get(
@@ -290,19 +356,15 @@ def product_matches(payload, product):
         )
     )
 
-    target = normalize(product)
-
-    # Exact product metadata match
+    # Exact metadata match
     if product_name == target:
-
         return True
 
-    # Product name appears in the actual document
+    # Product identifier/name inside document
     if target in payload_text:
-
         return True
 
-    # Some records may use shortened names
+    # Shortened product matching
     product_words = target.split()
 
     matching_words = sum(
@@ -315,28 +377,178 @@ def product_matches(payload, product):
 
 
 # ============================================================
+# LABORATORY QUERY DETECTION
+# ============================================================
+
+LABORATORY_TERMS = [
+    "laboratory",
+    "laboratories",
+    "lab",
+    "labs",
+    "testing laboratory",
+    "testing laboratories",
+    "testing lab",
+    "testing labs",
+    "test laboratory",
+    "test laboratories",
+]
+
+
+EXHAUSTIVE_TERMS = [
+    "how many",
+    "number of",
+    "count",
+    "all",
+    "every",
+    "list all",
+    "show all",
+    "give all",
+    "which laboratories",
+    "which labs",
+    "list laboratories",
+    "list labs",
+]
+
+
+def is_laboratory_query(query):
+    """
+    Detect laboratory-related questions.
+    """
+
+    q = normalize(query)
+
+    return any(
+        normalize(term) in q
+        for term in LABORATORY_TERMS
+    )
+
+
+def is_exhaustive_query(query):
+    """
+    Detect queries requiring all matching records.
+    """
+
+    q = normalize(query)
+
+    return any(
+        normalize(term) in q
+        for term in EXHAUSTIVE_TERMS
+    )
+
+
+def is_exhaustive_laboratory_query(query):
+    return (
+        is_laboratory_query(query)
+        and (
+            is_exhaustive_query(query)
+            or "laboratory" in normalize(query)
+            or "laboratories" in normalize(query)
+            or "labs" in normalize(query)
+        )
+    )
+
+
+# ============================================================
+# STANDARD EXTRACTION
+# ============================================================
+
+def extract_standard(query):
+    """
+    Extract an explicit IS standard from the query.
+
+    Examples:
+        IS 2347
+        IS 2347:2023
+        is2347:2023
+    """
+
+    if not query:
+        return None
+
+    match = re.search(
+        r"\bIS\s*[-:]?\s*(\d+)(?:\s*:\s*(\d{4}))?\b",
+        query,
+        flags=re.IGNORECASE
+    )
+
+    if not match:
+        return None
+
+    number = match.group(1)
+    year = match.group(2)
+
+    if year:
+        return f"IS {number}:{year}"
+
+    return f"IS {number}"
+
+
+def standard_matches(
+    payload,
+    standard
+):
+    """
+    Check whether payload matches an explicit standard.
+    """
+
+    if not standard:
+        return True
+
+    requested = normalize(standard)
+
+    payload_standard = normalize(
+        payload.get(
+            "standard_number",
+            ""
+        )
+    )
+
+    payload_text = normalize(
+        payload.get(
+            "text",
+            ""
+        )
+    )
+
+    if requested in payload_standard:
+        return True
+
+    if requested in payload_text:
+        return True
+
+    # Match standard number without revision year
+    number_match = re.search(
+        r"\d+",
+        requested
+    )
+
+    if number_match:
+
+        number = number_match.group(0)
+
+        if number in payload_standard:
+            return True
+
+    return False
+
+
+# ============================================================
 # TEXT CLEANING
 # ============================================================
 
 def clean_text(text):
-    """
-    Remove excessive whitespace while preserving
-    useful BIS information.
-    """
 
     if not text:
         return ""
 
     text = str(text)
 
-    # Remove excessive blank lines
     text = re.sub(
         r"\n{3,}",
         "\n\n",
         text
     )
 
-    # Remove excessive spaces
     text = re.sub(
         r"[ \t]{2,}",
         " ",
@@ -350,18 +562,30 @@ def clean_text(text):
 # DOCUMENT COMPACTION
 # ============================================================
 
-def compact_document(text):
+def compact_document(
+    text,
+    document_type=None
+):
     """
-    Keep the most useful portion of a large document.
+    Compact large documents.
 
-    Preference is given to product / standard / testing /
-    licence / laboratory / QCO information.
+    Laboratory records are already small structured records,
+    therefore they are preserved almost completely.
     """
 
     text = clean_text(text)
 
-    if len(text) <= MAX_DOCUMENT_CHARS:
+    if not text:
+        return ""
 
+    # Never aggressively compact laboratory records
+    if document_type == "laboratory":
+
+        return text[
+            :MAX_DOCUMENT_CHARS
+        ]
+
+    if len(text) <= MAX_DOCUMENT_CHARS:
         return text
 
     lines = text.splitlines()
@@ -381,6 +605,8 @@ def compact_document(text):
         "scope",
         "amendment",
         "corrigendum",
+        "sampling",
+        "sample size",
     ]
 
     important = []
@@ -394,11 +620,8 @@ def compact_document(text):
             keyword in lower
             for keyword in priority_keywords
         ):
-
             important.append(line)
-
         else:
-
             other.append(line)
 
     selected = []
@@ -427,26 +650,284 @@ def compact_document(text):
 
                 break
 
-    result = "\n".join(
+    return "\n".join(
         selected
-    )
-
-    return result[
+    )[
         :MAX_DOCUMENT_CHARS
     ]
 
 
 # ============================================================
-# SEARCH
+# LABORATORY DEDUPLICATION
 # ============================================================
 
-def search_knowledge(
+def laboratory_key(payload):
+    """
+    Generate a stable key for laboratory deduplication.
+
+    The same laboratory can exist in:
+        complete.json
+        getstandardlaboratorydetails.json
+
+    Those should count as one laboratory.
+    """
+
+    name = normalize(
+        payload.get(
+            "laboratory_name",
+            ""
+        )
+    )
+
+    # Your actual records store the name inside text,
+    # so extract it if metadata field is absent.
+    if not name:
+
+        text = str(
+            payload.get(
+                "text",
+                ""
+            )
+        )
+
+        match = re.search(
+            r"(?:Name|Laboratory Name)\s*:\s*(.+)",
+            text,
+            flags=re.IGNORECASE
+        )
+
+        if match:
+            name = normalize(
+                match.group(1)
+            )
+
+    address = normalize(
+        payload.get(
+            "address",
+            ""
+        )
+    )
+
+    if not address:
+
+        text = str(
+            payload.get(
+                "text",
+                ""
+            )
+        )
+
+        match = re.search(
+            r"Address\s*:\s*(.+)",
+            text,
+            flags=re.IGNORECASE
+        )
+
+        if match:
+            address = normalize(
+                match.group(1)
+            )
+
+    standard = normalize(
+        payload.get(
+            "standard_number",
+            ""
+        )
+    )
+
+    return (
+        name,
+        address,
+        standard
+    )
+
+
+# ============================================================
+# EXHAUSTIVE LABORATORY RETRIEVAL
+# ============================================================
+
+def search_all_laboratories(
+    query,
+    product=None,
+    standard=None
+):
+    """
+    Retrieve ALL laboratory records from Qdrant.
+
+    This does NOT depend on semantic top-k retrieval.
+    """
+
+    print("\n--- EXHAUSTIVE LABORATORY RETRIEVAL ---")
+
+    if product:
+        print(
+            "Product:",
+            display_product_name(product)
+        )
+
+    if standard:
+        print(
+            "Standard:",
+            standard
+        )
+
+    # --------------------------------------------------------
+    # Build exact metadata filter
+    # --------------------------------------------------------
+
+    must_conditions = [
+        FieldCondition(
+            key="type",
+            match=MatchValue(
+                value="laboratory"
+            )
+        )
+    ]
+
+    # If standard exists, use it as an additional
+    # exact metadata condition.
+    if standard:
+
+        must_conditions.append(
+            FieldCondition(
+                key="standard_number",
+                match=MatchValue(
+                    value=standard
+                )
+            )
+        )
+
+    qdrant_filter = Filter(
+        must=must_conditions
+    )
+
+    # --------------------------------------------------------
+    # Scroll through ALL matching records
+    # --------------------------------------------------------
+
+    all_points = []
+
+    offset = None
+
+    while True:
+
+        points, next_offset = client.scroll(
+            collection_name=COLLECTION_NAME,
+            scroll_filter=qdrant_filter,
+            limit=SCROLL_BATCH_SIZE,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        if not points:
+            break
+
+        all_points.extend(points)
+
+        if next_offset is None:
+            break
+
+        offset = next_offset
+
+    print(
+        "Raw laboratory records:",
+        len(all_points)
+    )
+
+    # --------------------------------------------------------
+    # Product filtering
+    #
+    # We do this after scroll because some datasets may have
+    # inconsistent product metadata.
+    # --------------------------------------------------------
+
+    filtered = []
+
+    for point in all_points:
+
+        payload = point.payload or {}
+
+        if not product_matches(
+            payload,
+            product
+        ):
+            continue
+
+        if not standard_matches(
+            payload,
+            standard
+        ):
+            continue
+
+        filtered.append(point)
+
+    print(
+        "After product/standard filtering:",
+        len(filtered)
+    )
+
+    # --------------------------------------------------------
+    # Deduplicate
+    # --------------------------------------------------------
+
+    unique = []
+
+    seen = set()
+
+    for point in filtered:
+
+        payload = point.payload or {}
+
+        key = laboratory_key(
+            payload
+        )
+
+        # If we couldn't extract a useful laboratory name,
+        # use the complete text as fallback.
+        if not key[0]:
+
+            key = (
+                normalize(
+                    payload.get(
+                        "text",
+                        ""
+                    )
+                ),
+                "",
+                normalize(
+                    payload.get(
+                        "standard_number",
+                        ""
+                    )
+                )
+            )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        unique.append(point)
+
+    print(
+        "Unique laboratories:",
+        len(unique)
+    )
+
+    return unique
+
+
+# ============================================================
+# NORMAL SEMANTIC SEARCH
+# ============================================================
+
+def semantic_search(
     query,
     limit=RETRIEVAL_LIMIT
 ):
     """
-    Search Qdrant and return compact,
-    relevant evidence only.
+    Original semantic retrieval behavior.
     """
 
     query_vector = model.encode(
@@ -455,30 +936,64 @@ def search_knowledge(
     ).tolist()
 
     results = client.query_points(
-
         collection_name=COLLECTION_NAME,
-
         query=query_vector,
-
         limit=limit,
-
         with_payload=True,
-
     )
 
-    points = results.points
+    return results.points
 
-    # --------------------------------------------------------
-    # Detect product
-    # --------------------------------------------------------
+
+# ============================================================
+# MAIN SEARCH FUNCTION
+# ============================================================
+
+def search_knowledge(
+    query,
+    limit=RETRIEVAL_LIMIT
+):
+    """
+    Smart BIS retrieval.
+
+    Normal questions:
+        semantic top-k search
+
+    Laboratory/count/all questions:
+        exhaustive Qdrant retrieval
+    """
 
     detected_product = detect_product(
         query
     )
 
+    explicit_standard = extract_standard(
+        query
+    )
+
     # --------------------------------------------------------
-    # Filter and rank
+    # SPECIAL CASE:
+    # Laboratory / count / all queries
     # --------------------------------------------------------
+
+    if is_exhaustive_laboratory_query(
+        query
+    ):
+
+        return search_all_laboratories(
+            query=query,
+            product=detected_product,
+            standard=explicit_standard
+        )
+
+    # --------------------------------------------------------
+    # NORMAL SEMANTIC SEARCH
+    # --------------------------------------------------------
+
+    points = semantic_search(
+        query,
+        limit=limit
+    )
 
     filtered = []
 
@@ -492,29 +1007,33 @@ def search_knowledge(
         )
 
         if not text.strip():
-
             continue
 
-        # Remove giant archive documents
-        if is_noisy_document(payload):
-
+        if is_noisy_document(
+            payload
+        ):
             continue
 
-        # If a product is detected, prefer
-        # records belonging to that product
         if detected_product:
 
             if not product_matches(
                 payload,
                 detected_product
             ):
+                continue
 
+        if explicit_standard:
+
+            if not standard_matches(
+                payload,
+                explicit_standard
+            ):
                 continue
 
         filtered.append(point)
 
     # --------------------------------------------------------
-    # Deduplicate
+    # Deduplication
     # --------------------------------------------------------
 
     unique = []
@@ -532,23 +1051,23 @@ def search_knowledge(
             )
         )
 
-        # Hash first part of text
         fingerprint = normalize(
             text[:1000]
         )
 
         if fingerprint in seen:
-
             continue
 
         seen.add(
             fingerprint
         )
 
-        unique.append(point)
+        unique.append(
+            point
+        )
 
     # --------------------------------------------------------
-    # Compact documents
+    # Compact normal results
     # --------------------------------------------------------
 
     final_results = []
@@ -564,30 +1083,33 @@ def search_knowledge(
             ""
         )
 
+        document_type = str(
+            payload.get(
+                "type",
+                ""
+            )
+        ).lower()
+
         compacted = compact_document(
-            original_text
+            original_text,
+            document_type
         )
 
         if not compacted:
-
             continue
 
-        # Respect total context limit
         remaining = (
             MAX_CONTEXT_CHARS
             - total_chars
         )
 
         if remaining <= 0:
-
             break
 
         compacted = compacted[
             :remaining
         ]
 
-        # Copy payload so original Qdrant
-        # result is not modified
         new_payload = dict(
             payload
         )
@@ -604,7 +1126,9 @@ def search_knowledge(
             compacted
         )
 
-        if len(final_results) >= MAX_RESULTS:
+        if len(
+            final_results
+        ) >= MAX_RESULTS:
 
             break
 
@@ -619,11 +1143,13 @@ def build_context(
     results
 ):
     """
-    Build a compact context string for the LLM.
+    Build context for the LLM.
+
+    Laboratory results are represented as structured
+    evidence so the LLM can count unique records correctly.
     """
 
     if not results:
-
         return ""
 
     sections = []
@@ -645,6 +1171,16 @@ def build_context(
             ""
         )
 
+        record_type = payload.get(
+            "type",
+            ""
+        )
+
+        lab_state = payload.get(
+            "lab_state",
+            ""
+        )
+
         text = payload.get(
             "text",
             ""
@@ -652,8 +1188,10 @@ def build_context(
 
         section = (
             f"[EVIDENCE {i}]\n"
+            f"Type: {record_type}\n"
             f"Product: {product}\n"
             f"Standard: {standard}\n"
+            f"State: {lab_state}\n"
             f"{text}"
         )
 
@@ -695,23 +1233,50 @@ def main():
         ).strip()
 
         if question.lower() == "exit":
-
             break
 
         if not question:
-
             continue
 
         detected_product = detect_product(
             question
         )
 
+        detected_standard = extract_standard(
+            question
+        )
+
         print(
             "\nDetected product:",
-            detected_product
+            display_product_name(
+                detected_product
+            )
             if detected_product
             else "Not identified"
         )
+
+        print(
+            "Detected standard:",
+            detected_standard
+            if detected_standard
+            else "Not explicitly specified"
+        )
+
+        if is_exhaustive_laboratory_query(
+            question
+        ):
+
+            print(
+                "Retrieval mode:",
+                "EXHAUSTIVE LABORATORY SEARCH"
+            )
+
+        else:
+
+            print(
+                "Retrieval mode:",
+                "SEMANTIC SEARCH"
+            )
 
         results = search_knowledge(
             question
@@ -762,9 +1327,19 @@ def main():
                 f"\n[EVIDENCE {i}]"
             )
 
+            if hasattr(
+                result,
+                "score"
+            ) and result.score is not None:
+
+                print(
+                    f"Score: "
+                    f"{result.score:.4f}"
+                )
+
             print(
-                f"Score: "
-                f"{result.score:.4f}"
+                f"Type: "
+                f"{payload.get('type', 'N/A')}"
             )
 
             print(
@@ -775,6 +1350,11 @@ def main():
             print(
                 f"Standard: "
                 f"{payload.get('standard_number', 'N/A')}"
+            )
+
+            print(
+                f"State: "
+                f"{payload.get('lab_state', 'N/A')}"
             )
 
             print(
@@ -793,9 +1373,9 @@ def main():
                 )
             )
 
-            print(
-                "=" * 70
-            )
+        print(
+            "\n" + "=" * 70
+        )
 
 
 # ============================================================
@@ -803,5 +1383,4 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-
     main()

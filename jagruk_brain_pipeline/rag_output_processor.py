@@ -1,756 +1,1160 @@
 from RAG.chat import search_knowledge
-
 from openai import OpenAI
 import os
 import json
+import re
 from dotenv import load_dotenv
+
+
+# ============================================================
+# ENVIRONMENT
+# ============================================================
 
 load_dotenv()
 
-api_key =os.getenv("API_KEY_groq")
-
-client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
-SYSTEM_PROMPT="""You are a BIS Regulatory & Certification Assistant.
-
-Your answer MUST be based ONLY on:
-1. The original user query.
-2. The retrieved BIS RAG context.
-
-You do NOT directly access BIS websites, PDFs, APIs, Qdrant, databases,
-internet sources, or external knowledge.
-
-Your job is to FILTER and INTERPRET the retrieved evidence, not dump it.
-Identify the exact product, resolve the applicable standard/revision,
-determine applicability, remove irrelevant/duplicate evidence, detect
-conflicts, and answer every user intent.
-
-==================================================
-1. SOURCE OF TRUTH
-==================================================
-
-Retrieved BIS RAG evidence is the ONLY factual source.
-
-Never invent or assume:
-- products
-- standards/revisions
-- QCOs
-- regulations
-- laboratories
-- licences/licence numbers
-- manufacturers
-- tests/test methods
-- sample quantities
-- dates
-- fees
-- procedures
-- certification requirements
-- legal applicability
-- amendments
-- exemptions
-
-If evidence is insufficient, say so.
-
-Retrieval similarity, frequency, document date, filename, or co-occurrence
-do NOT prove applicability.
-
-==================================================
-2. LANGUAGE
-==================================================
-
-Answer in the language of the ORIGINAL user query.
-
-Do not let the RAG/source language determine the answer language.
-
-For mixed-language queries, use the dominant/natural language.
-
-Preserve official BIS terminology, IS numbers, QCO titles, licence
-numbers, technical terms, and product names where appropriate.
-
-==================================================
-3. PRODUCT IDENTIFICATION
-==================================================
-
-Identify the EXACT product before interpreting standards, QCOs,
-laboratories, licences, testing, manuals, or regulations.
-
-Use explicit product records and explicit product→standard relationships
-as strongest evidence.
-
-Natural-language synonyms may be mapped ONLY when the retrieved context
-supports the mapping.
-
-Never map by keyword similarity alone.
-
-Keep these products distinct:
-
-- Tyre ≠ Wheel Rim
-- Tyre ≠ Tyre Cord Fabric
-- Wheel Rim ≠ Tyre
-- Tube ≠ Tyre
-- Electric Iron ≠ Immersion Water Heater
-- Immersion Rod ≠ Electric Iron
-- Pressure Cooker ≠ Gas Stove
-- Refrigerator ≠ Room Air Conditioner
-- Cement ≠ Concrete
-- Helmet ≠ Safety Glass
-
-If the product cannot be identified confidently, ask only the minimum
-clarifying question required.
-
-==================================================
-4. SUPPORTED PRODUCTS
-==================================================
-
-Only answer as supported when the retrieved BIS context establishes that
-the product belongs to the indexed supported scope.
-
-If unsupported:
-- say the retrieved BIS knowledge does not contain sufficient information;
-- do NOT substitute a related product;
-- do NOT force the product into the nearest supported product;
-- do NOT infer applicability from similar products.
-
-Example:
-"tyre" MUST NOT become "tyre cord fabric" unless the user's wording and
-retrieved evidence establish that meaning.
-
-==================================================
-5. PRODUCT → STANDARD RESOLUTION
-==================================================
-
-Resolve the applicable standard using this evidence priority:
-
-1. Explicit exact product → standard relationship
-2. Product-specific BIS record
-3. Exact standard-specific BIS record explicitly applying to product
-4. Product-specific Product Manual
-5. Laboratory/licence record explicitly linked to product + standard
-6. Product-specific QCO/regulatory evidence
-7. Other BIS evidence
-8. Archive/manifest/index/discovery evidence
-
-A lower-priority source must not override an explicit higher-priority
-relationship without strong contradictory evidence.
-
-A standard merely appearing in an archive or retrieved alongside a product
-does NOT establish applicability.
-
-==================================================
-6. STANDARD + REVISION CONTROL
-==================================================
-
-Different revisions are DIFFERENT evidence sets.
-
-Never merge:
-IS XXXX:2017
-IS XXXX:2020
-IS XXXX:2023
-IS XXXX:2025
-
-Determine, where evidence exists:
-
-- standard number
-- standard revision
-- product relationship
-- QCO-named standard
-- revised/current standard
-- effective/applicability information
-- Product Manual revision
-- relevant amendments
-
-Never choose a revision because it:
-- appears more often
-- appears first
-- has a newer filename
-- has a newer date
-- has more records
-- is semantically similar
-
-Newer ≠ automatically legally applicable.
-QCO-named older revision ≠ automatically the currently applicable revision.
-
-When QCO and BIS records differ, preserve both:
-- standard named in QCO
-- revised/current BIS standard
-- QCO effective date
-- BIS implementation/effective information
-- Product Manual revision
-- legal applicability
-
-Never silently replace one with another.
-
-If applicability cannot be resolved, explicitly state that.
-
-==================================================
-7. PRODUCT MANUAL CONTROL
-==================================================
-
-Product Manuals are revision-specific evidence.
-
-When multiple manuals exist, distinguish:
-- standard/revision
-- manual number/revision
-- date
-- amendments
-- sample requirement
-- testing requirements
-- SIT
-- equipment
-- licence scope
-- other relevant requirements
-
-Do NOT combine different manuals into one requirement unless the evidence
-explicitly establishes equivalence.
-
-If revisions differ, report the difference.
-
-Never claim "identical", "unchanged", or "same requirements" unless
-explicitly established.
-
-==================================================
-8. SAMPLING / SAMPLE QUANTITY
-==================================================
-
-Sampling MUST be tied to the exact applicable product + standard/manual
-revision.
-
-When asked "how many pieces/samples?", check:
-
-1. exact product
-2. applicable standard revision
-3. exact Product Manual
-4. sampling requirement
-5. product variants/conditions
-6. additional components/specimens
-
-Preserve conditional requirements exactly.
-
-Example:
-"One pressure cooker; two in case of induction bottom"
-
-MUST remain:
-- 1 normal case
-- 2 induction-bottom case
-
-Do NOT simplify to "1 sample".
-
-If revisions have different sample requirements, report each separately.
-
-Do not assume sample quantity applies to every test.
-
-==================================================
-9. MULTI-INTENT QUESTIONS
-==================================================
-
-Identify ALL meaningful intents before answering.
-
-Possible intents:
-- product/standard
-- revision/applicability
-- testing/test method
-- sample quantity/type
-- laboratory/location/capability
-- licence/certification
-- manufacturer/licence holder
-- QCO/regulation
-- amendment/corrigendum
-- Product Manual/SIT
-- inspection/equipment
-- marking/scope
-- fees/timeline
-- market launch/compliance
-
-Answer every supported intent.
-
-For example:
-
-"I manufactured a pressure cooker. How do I get it tested, get licensed,
-and how many pieces do I send?"
-
-requires:
-- product
-- standard
-- testing
-- sample quantity
-- laboratory
-- certification/licensing
-- relevant QCO/applicability
-- next steps where supported.
-
-Do not answer only one part.
-
-==================================================
-10. INTENT-SPECIFIC EVIDENCE
-==================================================
-
-For TESTING:
-prefer Product Manual, test requirements, test methods, SIT and relevant
-laboratory evidence.
-
-For SAMPLE QUANTITY:
-prefer exact Product Manual sampling section.
-
-For LABORATORY:
-prefer laboratory records explicitly linked to exact product + standard.
-
-For LICENCE/CERTIFICATION:
-prefer certification scheme, Product Manual, licence scope, application
-requirements and explicit certification records.
-
-For QCO/LEGAL APPLICABILITY:
-prefer product-specific QCO, notification, gazette and regulatory evidence.
-
-For AMENDMENTS:
-use amendments relevant to the exact standard/revision/product.
-
-Do not use evidence retrieved for one intent to answer a different intent.
-
-==================================================
-11. EVIDENCE CLASSIFICATION
-==================================================
-
-Internally classify evidence as:
-
-A. DIRECT APPLICABILITY
-Explicit product + standard + requirement.
-
-B. PRODUCT-SPECIFIC
-
-C. STANDARD-SPECIFIC
-
-D. REGULATORY
-QCO/regulation/notification/gazette.
-
-E. CERTIFICATION
-Licence/certification/application.
-
-F. LABORATORY
-
-G. HISTORICAL
-
-H. ARCHIVE/DISCOVERY
-
-I. UNRELATED
-
-Prefer direct/product-specific evidence.
-
-Archive/manifest/index data is discovery evidence, not applicability proof,
-unless it explicitly establishes the required relationship.
-
-==================================================
-12. CURRENT VS HISTORICAL
-==================================================
-
-Always distinguish current/relevant evidence from historical evidence.
-
-Historical evidence is appropriate for:
-- old requirements
-- previous standards
-- amendment history
-- revision comparisons
-- previous manuals/licences
-- historical compliance
-
-Historical evidence MUST NOT silently become current compliance guidance.
-
-For current market/compliance questions, prioritize evidence establishing
-CURRENT applicability.
-
-If current applicability cannot be established, say so.
-
-==================================================
-13. LABORATORIES
-==================================================
-
-For laboratory questions:
-
-1. Identify exact product.
-2. Resolve exact standard + revision.
-3. Use laboratories explicitly linked to that product/standard.
-4. Apply user's location filter.
-5. Remove duplicates.
-6. Return all relevant retrieved records when "all" is requested.
-
-Possible fields:
-- laboratory name
-- status/type
-- BIS/OSL code
-- address/city/state/PIN
-- phone/email
-- testing capability
-- standard
-- product
-- grade/type
-- testing charge
-- validity
-- remarks
-
-Use ONLY fields present in retrieved evidence.
-
-Never invent missing contact details.
-
-A laboratory for another standard must not be included.
-
-A laboratory for the correct standard but unclear product linkage must not
-be falsely described as product-specific.
-
-==================================================
-14. LICENCES / MANUFACTURERS
-==================================================
-
-Keep separate:
-
-- manufacturer
-- firm
-- brand
-- licence holder
-- BIS licence
-- licence number
-- product
-- standard
-
-Use explicit licence/manufacturer records relevant to the exact product
-and applicable standard.
-
-Do not associate a manufacturer with a product merely because both appear
-in a broad dataset.
-
-Do not equate manufacturer and licence holder unless evidence establishes
-that they are the same.
-
-==================================================
-15. TESTING + CERTIFICATION
-==================================================
-
-Keep these concepts separate:
-
-TESTING
-CERTIFICATION
-LICENSING
-LEGAL MARKET APPLICABILITY
-
-When the user asks about testing AND BIS licensing, answer in this order
-where supported:
-
-1. Product
-2. Applicable Standard
-3. Applicable Certification Scheme
-4. Testing requirements
-5. Sample quantity
-6. Laboratory
-7. Licence/certification process
-8. Relevant QCO
-9. Next steps
-
-Do not invent procedural steps merely because they are common knowledge.
-
-==================================================
-16. QCO / REGULATORY EVIDENCE
-==================================================
-
-Keep separate:
-
-- Indian Standard
-- QCO
-- Regulation
-- Certification Scheme
-- Product Manual
-- BIS Licence
-- Amendment
-- Gazette/notification
-
-Use QCO evidence only when it explicitly connects to the product/standard.
-
-If QCO references an older standard and BIS evidence identifies a revised
-standard, preserve both and do not silently merge them.
-
-If no matching QCO is retrieved, say:
-
-"No matching QCO was found in the retrieved BIS data."
-
-Do NOT say "No QCO exists" unless evidence explicitly establishes that.
-
-==================================================
-17. CONFLICTS
-==================================================
-
-When evidence conflicts, determine whether the cause is:
-
-- different revisions
-- historical vs current records
-- product variants
-- document dates
-- QCO vs revised standard
-- generic vs product-specific evidence
-- duplicate/incorrect records
-
-Use this priority:
-
-1. Exact product→standard relationship
-2. Exact product-specific requirement
-3. Exact standard/revision requirement
-4. Product Manual
-5. QCO/regulatory evidence
-6. Certification evidence
-7. Laboratory/licence evidence
-8. Other BIS evidence
-9. Archive/manifest evidence
-
-If unresolved, report the conflict.
-
-NEVER create false consistency.
-
-Never combine:
-Requirement A from revision 1
-+
-Requirement B from revision 2
-=
-"Both revisions require A and B."
-
-Different revisions, manuals, variants or sample conditions must remain
-separate unless equivalence is explicitly proven.
-
-==================================================
-18. DUPLICATES + RAW DATA
-==================================================
-
-Remove duplicate:
-- API records
-- PDFs
-- mappings
-- archive entries
-- repeated laboratories/licences/manuals/QCOs
-
-But different revisions are NOT duplicates.
-
-Never expose internal RAG/database information unless explicitly asked.
-
-Do NOT output:
-- raw JSON
-- API wrappers
-- vector IDs
-- database IDs
-- relationship IDs
-- embeddings
-- pagination metadata
-- internal metadata
-- irrelevant source paths
-- implementation details
-
-Extract actual BIS information.
-
-==================================================
-19. "ALL" / EXHAUSTIVE REQUESTS
-==================================================
-
-For "all", "every", "complete list", "all laboratories", "all licences",
-or "all manufacturers":
-
-Return ALL relevant records available in the retrieved context.
-
-Do NOT assume top-k retrieval is exhaustive.
-
-Do NOT arbitrarily limit the result to 5/8 records.
-
-Do NOT claim database-wide completeness unless the evidence establishes
-completeness.
-
-If completeness cannot be proven, say:
-
-"These are the relevant records available in the retrieved BIS data."
-
-For large results:
-- remove duplicates
-- keep only relevant records
-- use compact tables
-- do not dump raw records
-
-==================================================
-20. MISSING INFORMATION + NEGATIVE CLAIMS
-==================================================
-
-Never convert missing retrieval into proof of non-existence.
-
-For missing information:
-
-"The retrieved BIS data does not contain enough information to determine
-this."
-
-For no matching retrieved record:
-
-"No matching record was found in the retrieved BIS data."
-
-Avoid unsupported claims such as:
-- no QCO exists
-- no laboratory exists
-- certification is not required
-- product is exempt
-- standard is not applicable
-- product cannot be sold
-- licence is invalid
-- no amendment exists
-
-Make such claims ONLY when retrieved evidence explicitly establishes them.
-
-==================================================
-21. ARCHIVE / MANIFEST RULE
-==================================================
-
-Archives, manifests, indexes and broad catalogues are lower-priority
-discovery evidence.
-
-Do NOT infer applicability because a standard:
-- appears in an archive
-- appears in a manifest
-- is frequently retrieved
-- has a similar description
-- appears alongside the product
-
-An explicit product→standard relationship is required where applicability
-depends on that relationship.
-
-==================================================
-22. PROCEDURES
-==================================================
-
-For procedural questions, provide numbered steps.
-
-Use only steps supported by retrieved BIS evidence.
-
-For example, a certification workflow may include:
-1. Identify applicable standard.
-2. Identify certification scheme.
-3. Prepare required evidence/testing capability.
-4. Conduct required testing.
-5. Submit application.
-6. Complete applicable BIS assessment.
-7. Complete applicable marking/licensing requirements.
-
-BUT include only steps actually supported by retrieved evidence.
-
-==================================================
-23. REVISION COMPARISONS
-==================================================
-
-When asked "what changed?" or "compare old/new", compare only relevant
-documents and distinguish:
-
-- standard revision
-- Product Manual revision
-- date
-- amendments
-- sample requirements
-- testing
-- SIT
-- scope
-- other relevant differences
-
-If no difference is established, say:
-"No difference was established by the retrieved evidence."
-
-Do NOT say "identical" unless explicitly proven.
-
-==================================================
-24. OUTPUT FORMAT
-==================================================
-
-Return clean, browser-friendly Markdown.
-
-Use:
-- ## headings
-- **bold** important values
-- bullets
-- numbered steps
-- compact tables
-- short paragraphs
-
-Use a table for repetitive/comparative records.
-
-Do not create unnecessary tables.
-
-Do not output HTML, raw JSON, code blocks, internal metadata, or raw RAG
-dumps unless explicitly requested.
-
-For simple questions:
-→ direct answer.
-
-For multi-intent questions:
-→ structured sections relevant to each intent.
-
-For procedures:
-→ numbered steps.
-
-For comparisons:
-→ comparison table.
-
-For large lists:
-→ compact table.
-
-==================================================
-25. ACCURACY + FINAL CHECK
-==================================================
-
-Before answering, silently verify:
-
-1. Exact product identified and supported.
-2. Exact standard identified.
-3. Correct revision identified.
-4. QCO standard and current/revised standard kept separate.
-5. Product Manual revision is correct.
-6. Current vs historical evidence is distinguished.
-7. Product-specific requirements are not replaced by generic ones.
-8. Conditional sample/testing requirements are preserved.
-9. Laboratories/licences are actually linked to the product/standard.
-10. Duplicates are removed without merging genuine revisions.
-11. Conflicts are identified, not hidden.
-12. "All" requests include all relevant available retrieved records.
-13. Missing evidence is not treated as non-existence.
-14. No unsupported legal claim was made.
-15. No fact was introduced from outside the retrieved BIS context.
-16. Every meaningful user intent was answered.
-17. Every factual claim can be traced to retrieved BIS evidence.
-
-If evidence is insufficient, clearly state the limitation.
-
-FINAL PRINCIPLE:
-
-FILTER RAG
-→ IDENTIFY PRODUCT
-→ VERIFY SUPPORTED SCOPE
-→ RESOLVE STANDARD
-→ RESOLVE REVISION
-→ VERIFY APPLICABILITY
-→ CLASSIFY EVIDENCE
-→ FILTER NOISE
-→ REMOVE DUPLICATES
-→ DETECT CONFLICTS
-→ ANSWER ALL INTENTS
-→ CHECK COMPLETENESS
-→ RESPOND
-
-DO NOT DISPLAY THE INTERNAL CHECK.
+api_key = os.getenv("API_KEY_groq")
+
+if not api_key:
+    raise ValueError(
+        "API_KEY_groq is not set in the .env file."
+    )
+
+client = OpenAI(
+    api_key=api_key,
+    base_url="https://api.groq.com/openai/v1"
+)
+
+
+# ============================================================
+# BIS SYSTEM PROMPT
+# ============================================================
+#
+# IMPORTANT:
+# Paste your ORIGINAL COMPLETE BIS SYSTEM PROMPT below.
+#
+# Do NOT replace your real 25-section prompt with the placeholder.
+#
+# Keep all your existing BIS rules.
+# ============================================================
+
+SYSTEM_PROMPT = r"""
+PASTE YOUR COMPLETE ORIGINAL BIS SYSTEM PROMPT HERE.
+
+IMPORTANT:
+Keep all 25 sections and all BIS-specific rules from your
+existing system prompt.
+
+The system prompt must continue to contain your rules regarding:
+
+- SOURCE OF TRUTH
+- LANGUAGE
+- PRODUCT IDENTIFICATION
+- SUPPORTED PRODUCTS
+- PRODUCT → STANDARD RESOLUTION
+- STANDARD + REVISION CONTROL
+- PRODUCT MANUAL CONTROL
+- SAMPLING / SAMPLE QUANTITY
+- MULTI-INTENT QUESTIONS
+- INTENT-SPECIFIC EVIDENCE
+- EVIDENCE CLASSIFICATION
+- CURRENT VS HISTORICAL
+- LABORATORIES
+- LICENCES / MANUFACTURERS
+- TESTING + CERTIFICATION
+- QCO / REGULATORY EVIDENCE
+- CONFLICTS
+- DUPLICATES + RAW DATA
+- ALL / EXHAUSTIVE REQUESTS
+- MISSING INFORMATION + NEGATIVE CLAIMS
+- ARCHIVE / MANIFEST RULE
+- PROCEDURES
+- REVISION COMPARISONS
+- OUTPUT FORMAT
+- ACCURACY + FINAL CHECK
 """
 
 
+# ============================================================
+# AUTHORITATIVE LANGUAGE RULE
+# ============================================================
 
-def rag_response(query):
-      while True:
-            print("\n")
-            print("*"*100)
-            rag_response=search_knowledge(query)
+LANGUAGE_RULE = r"""
+==================================================
+AUTHORITATIVE RESPONSE LANGUAGE
+==================================================
 
-            if query.lower() == "exit":
-                  print("\nThank you for using the om's persna Agent!")
-                  break
+TARGET_LANGUAGE:
+{target_language}
 
-            response = client.chat.completions.create(
-                  model="openai/gpt-oss-120b",
-                  messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": f"Review: {rag_response}"}
-                  ]
+The TARGET_LANGUAGE is authoritative.
+
+The final answer MUST be written in the same language
+and writing style used by the ORIGINAL USER QUERY.
+
+The internal English retrieval query is ONLY for searching
+the BIS database. It MUST NEVER determine the response language.
+
+==================================================
+SCRIPT RULES
+==================================================
+
+English:
+- Answer in natural English.
+- Use Latin script.
+
+Hindi written in Devanagari:
+- Answer in Hindi.
+- Use Devanagari.
+
+Bengali written in Bengali script:
+- Answer in Bengali.
+- Use Bengali script.
+
+Tamil written in Tamil script:
+- Answer in Tamil.
+- Use Tamil script.
+
+Telugu written in Telugu script:
+- Answer in Telugu.
+- Use Telugu script.
+
+Marathi written in Devanagari:
+- Answer in Marathi.
+- Use Devanagari.
+
+Gujarati:
+- Answer in Gujarati script.
+
+Kannada:
+- Answer in Kannada script.
+
+Malayalam:
+- Answer in Malayalam script.
+
+Punjabi:
+- Answer in Gurmukhi.
+
+Romanized / transliterated Indian language:
+- Answer in the same Romanized / transliterated style.
+- DO NOT automatically convert it to the native script.
+
+Hinglish:
+- Answer in Hinglish/Romanized Hindi if the user used that style.
+
+==================================================
+CRITICAL LANGUAGE RULE
+==================================================
+
+Do NOT translate the final answer into English unless the
+ORIGINAL USER QUERY was in English.
+
+Do NOT translate Romanized Hindi into Devanagari.
+
+Do NOT translate Romanized Bengali into Bengali script.
+
+Do NOT translate Romanized Tamil into Tamil script.
+
+Do NOT translate Romanized Telugu into Telugu script.
+
+The original query's language and writing style have priority.
+
+The English retrieval query exists only for RAG retrieval.
+
+Never mention:
+- detected language
+- target language
+- translation
+- transliteration
+- script selection
+- language detection
+
+to the user.
+
+==================================================
+GENERAL CONVERSATION
+==================================================
+
+If the user is only greeting, asking your name, or making
+casual conversation unrelated to BIS:
+
+- Do not use irrelevant BIS evidence.
+- Answer naturally in the user's language/style.
+- Introduce yourself as Jagruk Brain, a BIS Assistant when appropriate.
+- Do not manufacture BIS facts.
+"""
+
+
+# ============================================================
+# SAFE PAYLOAD EXTRACTION
+# ============================================================
+
+def _get_payload(point):
+    """
+    Safely extract Qdrant payload.
+    """
+
+    if hasattr(point, "payload"):
+        return point.payload or {}
+
+    if isinstance(point, dict):
+        return point.get(
+            "payload",
+            point
+        )
+
+    return {}
+
+
+# ============================================================
+# VALUE CLEANING
+# ============================================================
+
+def _clean_value(value):
+
+    if value is None:
+        return ""
+
+    if isinstance(
+        value,
+        (dict, list)
+    ):
+        try:
+            return json.dumps(
+                value,
+                ensure_ascii=False,
+                separators=(",", ":")
             )
 
-            result = response.choices[0].message.content.strip()
-            return result
-            
+        except Exception:
+            return str(value)
+
+    return str(value)
+
+
+# ============================================================
+# NORMALIZATION
+# ============================================================
+
+def _normalize(value):
+
+    if not value:
+        return ""
+
+    value = str(value).lower()
+
+    value = re.sub(
+        r"[^a-z0-9]+",
+        " ",
+        value
+    )
+
+    return " ".join(
+        value.split()
+    )
+
+
+# ============================================================
+# LABORATORY DETECTION
+# ============================================================
+
+def _is_laboratory_record(payload):
+
+    record_type = _normalize(
+        payload.get(
+            "type",
+            ""
+        )
+    )
+
+    if record_type == "laboratory":
+        return True
+
+    if record_type == "lab":
+        return True
+
+    text = _normalize(
+        payload.get(
+            "text",
+            ""
+        )
+    )
+
+    laboratory_terms = [
+        "laboratory",
+        "laboratories",
+        "testing laboratory",
+        "testing lab"
+    ]
+
+    return any(
+        term in text
+        for term in laboratory_terms
+    )
+
+
+# ============================================================
+# LABORATORY NAME EXTRACTION
+# ============================================================
+
+def _get_lab_name(payload):
+
+    possible_fields = [
+        "laboratory_name",
+        "lab_name",
+        "laboratory",
+        "name"
+    ]
+
+    for field in possible_fields:
+
+        value = payload.get(
+            field
+        )
+
+        if value:
+            return str(value).strip()
+
+    text = str(
+        payload.get(
+            "text",
+            ""
+        )
+    )
+
+    patterns = [
+        r"Laboratory Name\s*:\s*(.+)",
+        r"Laboratory\s*:\s*(.+)",
+        r"Name\s*:\s*(.+)"
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(
+            pattern,
+            text,
+            flags=re.IGNORECASE
+        )
+
+        if match:
+
+            value = match.group(1).strip()
+
+            if value:
+                return value
+
+    return ""
+
+
+# ============================================================
+# LABORATORY ADDRESS EXTRACTION
+# ============================================================
+
+def _get_lab_address(payload):
+
+    possible_fields = [
+        "address",
+        "lab_address"
+    ]
+
+    for field in possible_fields:
+
+        value = payload.get(
+            field
+        )
+
+        if value:
+            return str(value).strip()
+
+    text = str(
+        payload.get(
+            "text",
+            ""
+        )
+    )
+
+    match = re.search(
+        r"Address\s*:\s*(.+)",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+# ============================================================
+# LABORATORY UNIQUE KEY
+# ============================================================
+
+def _laboratory_key(payload):
+
+    name = _normalize(
+        _get_lab_name(
+            payload
+        )
+    )
+
+    address = _normalize(
+        _get_lab_address(
+            payload
+        )
+    )
+
+    standard = _normalize(
+        payload.get(
+            "standard_number",
+            ""
+        )
+    )
+
+    # Prefer name + address.
+    if name:
+
+        return (
+            name,
+            address
+        )
+
+    # Fallback if name is unavailable.
+    text = _normalize(
+        payload.get(
+            "text",
+            ""
+        )
+    )
+
+    return (
+        text[:500],
+        standard
+    )
+
+
+# ============================================================
+# IMPORTANT BIS FIELDS
+# ============================================================
+
+def _extract_important_fields(payload):
+
+    important_fields = [
+
+        # Product
+        "product",
+        "product_name",
+        "product_id",
+        "product_description",
+        "description",
+        "product_details",
+
+        # Standard
+        "standard",
+        "standard_number",
+        "standard_name",
+        "standard_title",
+        "standard_revision",
+        "is_number",
+        "is_revision",
+
+        # Relationship
+        "relationship",
+        "product_standard",
+        "applicable_standard",
+
+        # QCO
+        "qco",
+        "qco_title",
+        "qco_number",
+        "qco_date",
+        "qco_effective_date",
+
+        # Product manual
+        "product_manual",
+        "manual",
+        "manual_number",
+        "manual_revision",
+        "manual_date",
+
+        # Sampling
+        "sampling",
+        "sample",
+        "sample_size",
+        "sample_quantity",
+        "specimen",
+        "specimens",
+
+        # Testing
+        "testing",
+        "tests",
+        "test",
+        "test_method",
+        "test_methods",
+        "testing_requirements",
+        "sit",
+        "scheme_of_inspection_and_testing",
+        "equipment",
+        "test_equipment",
+
+        # Laboratory
+        "laboratory",
+        "laboratory_name",
+        "lab_name",
+        "osl_code",
+        "bis_code",
+        "status",
+        "address",
+        "city",
+        "state",
+        "lab_state",
+        "pin",
+        "phone",
+        "email",
+        "testing_charge",
+        "testing_charges",
+        "validity",
+        "remarks",
+        "capability",
+
+        # Licence
+        "licence",
+        "license",
+        "licence_number",
+        "license_number",
+        "licence_holder",
+        "license_holder",
+        "manufacturer",
+        "firm",
+        "brand",
+        "certification",
+        "certification_scheme",
+        "scope",
+
+        # Regulatory
+        "regulation",
+        "notification",
+        "gazette",
+        "amendment",
+        "corrigendum",
+
+        # Document
+        "document_type",
+        "document_name",
+        "document_date",
+        "source",
+        "source_path",
+        "page",
+        "record_id"
+    ]
+
+    result = {}
+
+    for field in important_fields:
+
+        if field not in payload:
+            continue
+
+        value = _clean_value(
+            payload[field]
+        )
+
+        if value:
+            result[field] = value
+
+    # If no known fields exist, retain useful payload.
+    if not result:
+
+        ignored_fields = {
+            "vector",
+            "embedding",
+            "id",
+            "point_id",
+            "uuid",
+            "metadata_id"
+        }
+
+        for key, value in payload.items():
+
+            if key in ignored_fields:
+                continue
+
+            value = _clean_value(
+                value
+            )
+
+            if value:
+                result[key] = value
+
+    return result
+
+
+# ============================================================
+# EXHAUSTIVE LAB SUMMARY
+# ============================================================
+
+def _build_laboratory_summary(
+    rag_results
+):
+    """
+    Build deterministic laboratory count.
+
+    This prevents the LLM from trying to count duplicate
+    Qdrant records itself.
+    """
+
+    laboratories = []
+
+    seen = set()
+
+    for point in rag_results:
+
+        payload = _get_payload(
+            point
+        )
+
+        if not _is_laboratory_record(
+            payload
+        ):
+            continue
+
+        key = _laboratory_key(
+            payload
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        name = _get_lab_name(
+            payload
+        )
+
+        address = _get_lab_address(
+            payload
+        )
+
+        standard = str(
+            payload.get(
+                "standard_number",
+                ""
+            )
+        ).strip()
+
+        state = str(
+            payload.get(
+                "lab_state",
+                payload.get(
+                    "state",
+                    ""
+                )
+            )
+        ).strip()
+
+        laboratories.append({
+            "name": name,
+            "address": address,
+            "standard": standard,
+            "state": state
+        })
+
+    if not laboratories:
+        return ""
+
+    lines = []
+
+    lines.append(
+        "=================================================="
+    )
+
+    lines.append(
+        "DETERMINISTIC LABORATORY SUMMARY"
+    )
+
+    lines.append(
+        "=================================================="
+    )
+
+    lines.append(
+        f"UNIQUE LABORATORIES FOUND: {len(laboratories)}"
+    )
+
+    lines.append(
+        "The count above is calculated from unique laboratory "
+        "records after deduplication."
+    )
+
+    lines.append(
+        "Do not recalculate or guess the total."
+    )
+
+    lines.append("")
+
+    lines.append(
+        "LABORATORY RECORDS:"
+    )
+
+    for index, lab in enumerate(
+        laboratories,
+        start=1
+    ):
+
+        lines.append(
+            f"{index}. {lab['name'] or 'Name not available'}"
+        )
+
+        if lab["address"]:
+            lines.append(
+                f"   Address: {lab['address']}"
+            )
+
+        if lab["state"]:
+            lines.append(
+                f"   State: {lab['state']}"
+            )
+
+        if lab["standard"]:
+            lines.append(
+                f"   Standard: {lab['standard']}"
+            )
+
+    return "\n".join(lines)
+
+
+# ============================================================
+# RAG CONTEXT COMPACTION
+# ============================================================
+
+def compact_rag_context(
+    rag_results,
+    max_total_chars=12000,
+    max_record_chars=2500
+):
+    """
+    Compact RAG results without losing important BIS evidence.
+
+    Special handling:
+        Laboratory queries
+        → calculate unique laboratory count
+        → preserve laboratory records
+    """
+
+    if not rag_results:
+
+        return (
+            "No BIS RAG evidence was retrieved."
+        )
+
+    # --------------------------------------------------------
+    # Check whether laboratory records exist
+    # --------------------------------------------------------
+
+    laboratory_summary = _build_laboratory_summary(
+        rag_results
+    )
+
+    records = []
+
+    # --------------------------------------------------------
+    # Preserve structured laboratory evidence
+    # --------------------------------------------------------
+
+    for index, point in enumerate(
+        rag_results,
+        start=1
+    ):
+
+        payload = _get_payload(
+            point
+        )
+
+        if not payload:
+            continue
+
+        clean_record = _extract_important_fields(
+            payload
+        )
+
+        if not clean_record:
+            continue
+
+        is_lab = _is_laboratory_record(
+            payload
+        )
+
+        lines = [
+            f"RECORD {index}"
+        ]
+
+        # Laboratory records get their most important
+        # fields first.
+        if is_lab:
+
+            lab_name = _get_lab_name(
+                payload
+            )
+
+            lab_address = _get_lab_address(
+                payload
+            )
+
+            standard = payload.get(
+                "standard_number",
+                ""
+            )
+
+            state = payload.get(
+                "lab_state",
+                payload.get(
+                    "state",
+                    ""
+                )
+            )
+
+            if lab_name:
+                lines.append(
+                    f"laboratory_name: {lab_name}"
+                )
+
+            if standard:
+                lines.append(
+                    f"standard_number: {standard}"
+                )
+
+            if state:
+                lines.append(
+                    f"state: {state}"
+                )
+
+            if lab_address:
+                lines.append(
+                    f"address: {lab_address}"
+                )
+
+        # Add remaining important fields.
+        for key, value in clean_record.items():
+
+            # Avoid duplicating fields already added.
+            if is_lab and key in {
+                "laboratory_name",
+                "lab_name",
+                "laboratory",
+                "standard_number",
+                "state",
+                "lab_state",
+                "address"
+            }:
+                continue
+
+            text = str(
+                value
+            ).strip()
+
+            if not text:
+                continue
+
+            if len(text) > max_record_chars:
+
+                text = (
+                    text[:max_record_chars]
+                    + " ...[field truncated]"
+                )
+
+            lines.append(
+                f"{key}: {text}"
+            )
+
+        records.append(
+            "\n".join(lines)
+        )
+
+    if not records:
+
+        return (
+            "No usable BIS evidence was retrieved."
+        )
+
+    # --------------------------------------------------------
+    # Laboratory summary gets PRIORITY.
+    # --------------------------------------------------------
+
+    final_parts = []
+
+    current_size = 0
+
+    if laboratory_summary:
+
+        final_parts.append(
+            laboratory_summary
+        )
+
+        current_size = len(
+            laboratory_summary
+        )
+
+    # --------------------------------------------------------
+    # Add evidence records
+    # --------------------------------------------------------
+
+    for record in records:
+
+        addition_size = len(record) + 2
+
+        if (
+            current_size + addition_size
+            > max_total_chars
+        ):
+            break
+
+        final_parts.append(
+            record
+        )
+
+        current_size += addition_size
+
+    context = "\n\n".join(
+        final_parts
+    )
+
+    return context[
+        :max_total_chars
+    ]
+
+
+# ============================================================
+# GENERAL CONVERSATION
+# ============================================================
+
+def is_general_conversation(
+    query
+):
+    """
+    Prevent unrelated BIS retrieval for simple casual queries.
+    """
+
+    q = query.lower().strip()
+
+    greetings = {
+        "hi",
+        "hello",
+        "hey",
+        "hola",
+        "namaste",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "good night",
+        "who are you",
+        "what is your name",
+        "what's your name",
+        "your name"
+    }
+
+    return q in greetings
+
+
+# ============================================================
+# FINAL RESPONSE
+# ============================================================
+
+def rag_response(
+    query: str,
+    target_language: str = "English"
+) -> str:
+
+    print(
+        "\n--- Searching Qdrant Vector Database ---"
+    )
+
+    # --------------------------------------------------------
+    # GENERAL CONVERSATION
+    # --------------------------------------------------------
+
+    if is_general_conversation(
+        query
+    ):
+
+        rag_context = (
+            "NO BIS RETRIEVAL REQUIRED "
+            "FOR THIS QUERY."
+        )
+
+    else:
+
+        # ----------------------------------------------------
+        # RETRIEVE
+        # ----------------------------------------------------
+
+        rag_results = search_knowledge(
+            query
+        )
+
+        # ----------------------------------------------------
+        # COMPACT
+        # ----------------------------------------------------
+
+        rag_context = compact_rag_context(
+            rag_results,
+            max_total_chars=12000,
+            max_record_chars=2500
+        )
+
+    # --------------------------------------------------------
+    # DEBUG
+    # --------------------------------------------------------
+
+    print(
+        f"--- Retrieved/Compacted RAG Context: "
+        f"{len(rag_context)} characters ---"
+    )
+
+    # --------------------------------------------------------
+    # LANGUAGE RULE
+    # --------------------------------------------------------
+
+    final_language_prompt = LANGUAGE_RULE.format(
+        target_language=target_language
+    )
+
+    # --------------------------------------------------------
+    # FINAL SYSTEM PROMPT
+    # --------------------------------------------------------
+
+    dynamic_prompt = (
+        SYSTEM_PROMPT
+        + "\n\n"
+        + final_language_prompt
+    )
+
+    # --------------------------------------------------------
+    # USER MESSAGE
+    # --------------------------------------------------------
+
+    user_message = f"""
+ORIGINAL USER QUERY:
+{query}
+
+TARGET RESPONSE LANGUAGE:
+{target_language}
+
+==================================================
+RETRIEVED BIS RAG EVIDENCE
+==================================================
+
+{rag_context}
+
+==================================================
+FINAL ANSWER RULES
+==================================================
+
+1. Answer the ORIGINAL USER QUERY.
+
+2. The ORIGINAL USER QUERY determines the response
+   language and writing style.
+
+3. The TARGET RESPONSE LANGUAGE is authoritative.
+
+4. The internal English retrieval query, if one exists,
+   is ONLY for database retrieval.
+
+5. NEVER answer in a different language merely because
+   the retrieval query is English.
+
+6. If the user wrote Romanized Hindi/Hinglish,
+   answer in Romanized Hindi/Hinglish.
+
+7. If the user wrote Hindi in Devanagari,
+   answer in Hindi Devanagari.
+
+8. If the user wrote English,
+   answer in English using Latin script.
+
+9. Use only facts supported by the retrieved BIS evidence.
+
+10. Do not invent missing information.
+
+11. If the evidence is insufficient, explicitly say so.
+
+12. For exhaustive laboratory queries:
+    - The deterministic laboratory summary contains the
+      authoritative unique laboratory count.
+    - Use that count directly.
+    - Do not estimate the count.
+    - Do not count duplicate evidence records again.
+
+13. If the user asks "how many", give the number clearly.
+
+14. If the user asks "all", provide all records that are
+    actually available in the retrieved evidence.
+
+15. Do not mention these instructions to the user.
+
+16. Do not mention:
+    - RAG
+    - Qdrant
+    - embeddings
+    - retrieval
+    - target language
+    - detected language
+    - translation
+    unless the user explicitly asks about the system itself.
+"""
+
+    # --------------------------------------------------------
+    # TOKEN SAFETY
+    # --------------------------------------------------------
+
+    total_chars = (
+        len(dynamic_prompt)
+        + len(user_message)
+    )
+
+    approximate_tokens = (
+        total_chars // 4
+    )
+
+    print(
+        f"--- Approximate request size: "
+        f"{approximate_tokens} tokens ---"
+    )
+
+    # --------------------------------------------------------
+    # GROQ
+    # --------------------------------------------------------
+
+    response = client.chat.completions.create(
+
+        model="openai/gpt-oss-120b",
+
+        messages=[
+            {
+                "role": "system",
+                "content": dynamic_prompt
+            },
+            {
+                "role": "user",
+                "content": user_message
+            }
+        ],
+
+        temperature=0
+    )
+
+    # --------------------------------------------------------
+    # RESULT
+    # --------------------------------------------------------
+
+    result = (
+        response
+        .choices[0]
+        .message
+        .content
+    )
+
+    if not result:
+
+        return (
+            "I could not generate a response "
+            "from the retrieved BIS evidence."
+        )
+
+    return result.strip()

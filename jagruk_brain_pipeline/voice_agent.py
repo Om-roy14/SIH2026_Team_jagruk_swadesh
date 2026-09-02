@@ -41,6 +41,7 @@ def _detect_indic_voice(text: str) -> str:
 class PatchedTTSResponse:
     def __init__(self, content_bytes: bytes):
         self.content = content_bytes
+        
     def read(self) -> bytes:
         return self.content
 
@@ -83,53 +84,45 @@ def patch_client_tts(client_instance):
 
 patch_client_tts(client)
 
-# Rename this function so it can be cleanly imported
-def run_voice_agent():
+def listen_and_transcribe() -> str:
+    """Listens to the microphone and returns the transcribed text."""
     r = sr.Recognizer()
     with sr.Microphone() as source:
         r.adjust_for_ambient_noise(source)
         r.pause_threshold = 2
 
-        print("speak something...")
+        print("Listening (Speak now)...")
         audio = r.listen(source)
 
-        print("processing audio...(STT)")
-        stt = r.recognize_google(audio)
+        print("Processing audio (STT)...")
+        try:
+            stt = r.recognize_google(audio)
+            print("You said:", stt)
+            return stt
+        except Exception as e:
+            print("Could not understand audio:", e)
+            return ""
 
-        print("you said :", stt)
+def speak_response(text: str):
+    """Takes text and converts it to speech output."""
+    print("Synthesizing voice response...")
+    
+    # We rely on the patched client to intercept this and route it to edge_tts
+    tts_response = client.audio.speech.create(
+        model="canopylabs/orpheus-v1-english",
+        voice="troy",
+        input=text,
+        response_format="wav",
+    )
 
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a direct conversational voice assistant. Reply"
-                    " naturally in 1-2 short sentences (max 30 words). Match the"
-                    " user's language. Never use markdown formatting (no bold,"
-                    " asterisks, or bullet points), filler greetings, or"
-                    " conversational fluff. Answer directly.",
-                },
-                {"role": "user", "content": f"Review: {stt}"},
-            ],
-        )
+    audio_data = tts_response.read()
+    audio_buffer = io.BytesIO(audio_data)
+    
+    # soundfile converts the bytes so sounddevice can play them
+    data, samplerate = sf.read(audio_buffer)
 
-        result = response.choices[0].message.content.strip()
-        print("jawaab", result)
-
-        tts_response = client.audio.speech.create(
-            model="canopylabs/orpheus-v1-english",
-            voice="troy",
-            input=result,
-            response_format="wav",
-        )
-
-        audio_data = tts_response.read()
-        audio_buffer = io.BytesIO(audio_data)
-        data, samplerate = sf.read(audio_buffer)
-
-        sd.play(data, samplerate)
-        sd.wait()
-
-# This guard prevents the code from running when imported into main.py
-if __name__ == "__main__":
-    run_voice_agent()
+    sd.play(data, samplerate)
+    sd.wait()
+    
+    
+ 
