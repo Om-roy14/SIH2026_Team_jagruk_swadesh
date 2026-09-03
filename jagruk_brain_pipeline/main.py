@@ -27,23 +27,42 @@ def filter_query_node(state: PipelineState):
         print("Warning: No query provided.")
         return {"filtered_query": "", "detected_language": "English"}
         
-    # filter_user_query now returns a dictionary
+    # filter_user_query now returns the 10-field dictionary
     processed_data = filter_user_query(query)
     
-    # Extract the JSON values securely
+    # 1. Get the base English query
     eng_query = processed_data.get("english_query", query)
+    
+    # 2. Extract the dense search terms and exact product name
+    search_terms = processed_data.get("search_terms", [])
+    product = processed_data.get("product")
+    
+    # 3. Combine them to create a hyper-dense vector search string for Qdrant
+    dense_query = eng_query
+    if product:
+        # Clean up the product string (replace underscores with spaces)
+        clean_product = product.replace("_", " ")
+        dense_query += f" {clean_product}"
+        
+    if search_terms:
+        # Ensure search_terms is treated properly whether it's a list or a string
+        if isinstance(search_terms, list):
+            dense_query += " " + " ".join(search_terms)
+        else:
+            dense_query += f" {search_terms}"
+            
     lang = processed_data.get("detected_language", "English")
     
     print(f"Detected Language: {lang}")
-    print(f"Translated Search Query: {eng_query}")
+    print(f"Dense Search Query for Qdrant: {dense_query}")
     
     return {
-        "filtered_query": eng_query,
+        "filtered_query": dense_query,
         "detected_language": lang
     }
 
 def rag_response_node(state: PipelineState):
-    # Fetch the translated query and the original language from state
+    # Fetch the dense translated query and the original language from state
     filtered = state.get("filtered_query", "")
     target_lang = state.get("detected_language", "English")
     
