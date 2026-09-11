@@ -19,14 +19,14 @@ export default function Footer({ onOpenChatbotModal }) {
               Making BIS-related information easier to discover and understand. An intelligent platform empowering industries, MSMEs, startups, and Indian consumers.
             </p>
 
-            <button
+            {/* <button
               onClick={onOpenChatbotModal}
               className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-forest-olive/80 border border-white/15 text-white text-xs font-semibold hover:bg-forest-sage/60 transition-all shadow-sm"
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
               <span>Jagruk Swadesh AI Chatbot</span>
               <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
-            </button>
+            </button> */}
           </div>
 
           {/* Navigation Links */}

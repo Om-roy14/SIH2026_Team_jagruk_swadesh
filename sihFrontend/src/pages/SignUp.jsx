@@ -118,7 +118,7 @@ export default function SignUp() {
                 value={formData.fullName}
                 onChange={handleChange}
                 placeholder="Rajesh Kumar"
-                icon={User}
+                // icon={User}
                 error={errors.fullName}
                 required
               />
@@ -130,7 +130,7 @@ export default function SignUp() {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="name@example.com"
-                icon={Mail}
+                // icon={Mail}
                 error={errors.email}
                 required
               />
@@ -142,7 +142,7 @@ export default function SignUp() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  icon={Lock}
+                  // icon={Lock}
                   error={errors.password}
                   isPassword={true}
                   showPassword={showPassword}
@@ -156,7 +156,7 @@ export default function SignUp() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  icon={Lock}
+                  // icon={Lock}
                   error={errors.confirmPassword}
                   isPassword={true}
                   showPassword={showConfirmPassword}
@@ -191,7 +191,7 @@ export default function SignUp() {
                 type="submit"
                 variant="primary"
                 size="lg"
-                icon={ArrowRight}
+                // icon={ArrowRight}
                 className="w-full mt-2"
                 disabled={isSubmitting}
               >

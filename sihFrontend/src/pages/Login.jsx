@@ -101,7 +101,7 @@ export default function Login({ onOpenChatbotModal }) {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="name@example.com"
-                icon={Mail}
+                // icon={Mail}
                 error={errors.email}
                 required
               />
@@ -113,7 +113,7 @@ export default function Login({ onOpenChatbotModal }) {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  icon={Lock}
+                  // icon={Lock}
                   error={errors.password}
                   isPassword={true}
                   showPassword={showPassword}
