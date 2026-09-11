@@ -53,7 +53,7 @@ export default function About({ onOpenChatbotModal }) {
     {
       id: 4,
       name: "Saurabh Devliyal",
-      role: "Frontend QA & Documentation",
+      role: " Documentation",
       description: "Polishing the final experience. Specializing in frontend quality assurance, UX and performance testing, interface validation, and documenting the technical journey behind our platform.",
       image: "/team/saurav-devliyal.jpg",
       initials: "SD"

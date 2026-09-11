@@ -10,13 +10,13 @@ export default function Logo({ size = 'md', className = '', showText = true }) {
   return (
     <div className={`flex items-center space-x-3.5 group ${className}`}>
       {/* Official Jagruk Swadesh Logo Badge */}
-      <div className="relative flex items-center justify-center p-1 rounded-xl bg-white border border-white/60 shadow-lg group-hover:scale-105 transition-transform duration-200 overflow-hidden shrink-0">
+<div className="relative flex items-center justify-center p-1 rounded-[25px] shadow-lg group-hover:scale-105 transition-transform duration-200 overflow-hidden shrink-0">
         <img
-          src="/assets/logo.png"
+          src="/assets/logo_original.jpg"
           alt="Jagruk Swadesh Logo"
           className={`${sizeClasses[size]} w-auto object-contain shrink-0`}
           onError={(e) => {
-            e.target.src = '/assets/logo-original.jpg';
+            e.target.src = '/assets/logo_original.jpg';
           }}
         />
       </div>

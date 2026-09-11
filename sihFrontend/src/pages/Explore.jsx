@@ -87,7 +87,7 @@ export default function Explore({ onOpenChatbotModal }) {
         {/* Explore Hero Header */}
         <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center space-y-6">
           <SectionHeading
-            tag="KNOWLEDGE BASE"
+            // tag="KNOWLEDGE BASE"
             title="Explore BIS Services"
             subtitle="Discover information across major Bureau of Indian Standards domains."
           />
