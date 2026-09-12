@@ -52,7 +52,7 @@ export default function Navbar() {
           {/* LEFT: Logo with Green Dot Indicator (Reference Inspired) */}
           <Link to="/" className="flex items-center space-x-2">
             {/* <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm" /> */}
-            <Logo size="lg" />
+            <Logo size="md" />
           </Link>
 
           {/* CENTER / RIGHT: Navigation Links */}
