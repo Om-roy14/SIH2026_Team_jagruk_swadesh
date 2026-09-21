@@ -23,24 +23,27 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import Chatbot from './pages/Chatbot';
 
 
-// ============================================================
-// SCROLL TO TOP
-// ============================================================
+/* =========================================================
+   Scroll To Top
+========================================================= */
 
 function ScrollToTop() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
   }, [pathname]);
 
   return null;
 }
 
 
-// ============================================================
-// MAIN LAYOUT
-// ============================================================
+/* =========================================================
+   Main Layout
+========================================================= */
 
 function MainLayout() {
   const [isChatbotModalOpen, setIsChatbotModalOpen] = useState(false);
@@ -54,12 +57,16 @@ function MainLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
+  /*
+   * Chatbot uses a full-screen layout.
+   * Other pages retain the normal Navbar/Footer structure.
+   */
   const isChatbotPage = pathname === '/chatbot';
 
 
-  // ==========================================================
-  // HANDLE PENDING CHATBOT ACCESS
-  // ==========================================================
+  /* =======================================================
+     Pending Chatbot Access
+  ======================================================= */
 
   useEffect(() => {
     if (isAuthenticated && pendingChatbotAccess) {
@@ -69,14 +76,14 @@ function MainLayout() {
   }, [
     isAuthenticated,
     pendingChatbotAccess,
-    setPendingChatbotAccess,
     navigate,
+    setPendingChatbotAccess,
   ]);
 
 
-  // ==========================================================
-  // OPEN CHATBOT
-  // ==========================================================
+  /* =======================================================
+     Open Chatbot
+  ======================================================= */
 
   const handleOpenChatbotModal = () => {
     if (isAuthenticated) {
@@ -88,18 +95,18 @@ function MainLayout() {
   };
 
 
-  // ==========================================================
-  // CLOSE CHATBOT MODAL
-  // ==========================================================
+  /* =======================================================
+     Close Chatbot Modal
+  ======================================================= */
 
   const handleCloseChatbotModal = () => {
     setIsChatbotModalOpen(false);
   };
 
 
-  // ==========================================================
-  // MAIN LAYOUT
-  // ==========================================================
+  /* =======================================================
+     Application Layout
+  ======================================================= */
 
   return (
     <div
@@ -116,10 +123,7 @@ function MainLayout() {
       `}
     >
 
-      {/* ======================================================
-          1. PRIMARY GREEN ATMOSPHERIC BACKGROUND
-      ====================================================== */}
-
+      {/* Background */}
       <div
         className="bg-nature-environment"
         aria-hidden="true"
@@ -131,32 +135,26 @@ function MainLayout() {
       />
 
 
-      {/* ======================================================
-          2. CURSOR FOLLOWING LIQUID AURA
-      ====================================================== */}
-
+      {/* Global Cursor Effect */}
       <CursorGlow />
 
 
-      {/* ======================================================
-          3. SCROLL RESTORER
-      ====================================================== */}
-
+      {/* Scroll Management */}
       <ScrollToTop />
 
 
-      {/* ======================================================
-          4. NAVBAR
-      ====================================================== */}
+      {/* ===================================================
+          Navbar
+      =================================================== */}
 
       <Navbar
         onOpenChatbotModal={handleOpenChatbotModal}
       />
 
 
-      {/* ======================================================
-          5. MAIN ROUTED CONTENT
-      ====================================================== */}
+      {/* ===================================================
+          Main Application Content
+      =================================================== */}
 
       <main
         className={`
@@ -168,13 +166,9 @@ function MainLayout() {
           }
         `}
       >
-
         <Routes>
 
-          {/* ==================================================
-              HOME
-          ================================================== */}
-
+          {/* Home */}
           <Route
             path="/"
             element={
@@ -185,10 +179,7 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              EXPLORE
-          ================================================== */}
-
+          {/* Explore */}
           <Route
             path="/explore"
             element={
@@ -199,10 +190,7 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              ABOUT
-          ================================================== */}
-
+          {/* About */}
           <Route
             path="/about"
             element={
@@ -213,9 +201,9 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              CHATBOT
-          ================================================== */}
+          {/* =================================================
+              AI Chatbot
+          ================================================= */}
 
           <Route
             path="/chatbot"
@@ -223,13 +211,20 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              PRODUCT DETAILS / QR VERIFICATION
+          {/* =================================================
+              Product QR Verification
               
-              ProductDetails.jsx is located at:
-              
-              src/components/ProductDetails.jsx
-          ================================================== */}
+              Flow:
+              Chatbot
+                 ↓
+              Scan Product
+                 ↓
+              /product-details
+                 ↓
+              QR Scanner
+                 ↓
+              Product Details
+          ================================================= */}
 
           <Route
             path="/product-details"
@@ -237,10 +232,7 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              LOGIN
-          ================================================== */}
-
+          {/* Login */}
           <Route
             path="/login"
             element={
@@ -253,36 +245,29 @@ function MainLayout() {
           />
 
 
-          {/* ==================================================
-              SIGN UP
-          ================================================== */}
-
+          {/* Signup */}
           <Route
             path="/signup"
             element={<SignUp />}
           />
 
 
-          {/* ==================================================
-              PRIVACY POLICY
-          ================================================== */}
-
+          {/* Privacy Policy */}
           <Route
             path="/privacy"
             element={<PrivacyPolicy />}
           />
 
         </Routes>
-
       </main>
 
 
-      {/* ======================================================
-          6. FOOTER
+      {/* ===================================================
+          Footer
           
-          Footer is hidden on the chatbot page because the
-          chatbot uses the full screen.
-      ====================================================== */}
+          Hidden on chatbot because chatbot occupies the
+          complete viewport.
+      =================================================== */}
 
       {!isChatbotPage && (
         <Footer
@@ -291,11 +276,9 @@ function MainLayout() {
       )}
 
 
-      {/* ======================================================
-          7. CHATBOT INTEGRATION MODAL
-          
-          Only authenticated users can access this modal.
-      ====================================================== */}
+      {/* ===================================================
+          Chatbot Integration Modal
+      =================================================== */}
 
       {isAuthenticated && (
         <ChatbotIntegrationModal
@@ -309,9 +292,9 @@ function MainLayout() {
 }
 
 
-// ============================================================
-// APP
-// ============================================================
+/* =========================================================
+   Application Root
+========================================================= */
 
 export default function App() {
   return (

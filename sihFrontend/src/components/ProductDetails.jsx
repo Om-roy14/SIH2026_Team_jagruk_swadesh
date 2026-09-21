@@ -16,24 +16,60 @@ import QRScanner from "./QRScanner";
 import { dummyProducts } from "../data/dummyProducts";
 
 export default function ProductDetails() {
+  /* =========================================================
+     STATE
+  ========================================================= */
+
   const [showScanner, setShowScanner] = useState(true);
   const [scannedCode, setScannedCode] = useState("");
   const [product, setProduct] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
+
+  /* =========================================================
+     QR SCAN SUCCESS
+     
+     QR content is treated as the unique product identifier.
+     
+     Example:
+       QR-PROD-001
+           ↓
+       dummyProducts["QR-PROD-001"]
+           ↓
+       Product Details
+  ========================================================= */
+
   const handleScanSuccess = (decodedText) => {
-    const qrCode = decodedText.trim();
+    const qrCode = decodedText?.trim();
+
+    if (!qrCode) {
+      return;
+    }
 
     console.log("SCANNED QR:", qrCode);
 
-    // Save QR identifier
+    /* Save scanned QR identifier */
     setScannedCode(qrCode);
 
-    // Close scanner
+    /* Stop displaying scanner */
     setShowScanner(false);
 
-    // IMPORTANT:
-    // Use QR code as the key to find the product.
+    /* Reset previous result before lookup */
+    setProduct(null);
+    setNotFound(false);
+
+    /*
+     * Lookup product using the QR identifier.
+     *
+     * This currently uses local dummy data.
+     * Later this lookup can be replaced with:
+     *
+     * QR ID
+     *   ↓
+     * Express / FastAPI API
+     *   ↓
+     * Existing BIS Data
+     */
     const foundProduct = dummyProducts[qrCode];
 
     console.log("FOUND PRODUCT:", foundProduct);
@@ -47,6 +83,11 @@ export default function ProductDetails() {
     }
   };
 
+
+  /* =========================================================
+     SCAN ANOTHER PRODUCT
+  ========================================================= */
+
   const scanAnother = () => {
     setScannedCode("");
     setProduct(null);
@@ -54,10 +95,18 @@ export default function ProductDetails() {
     setShowScanner(true);
   };
 
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <div className="min-h-screen px-6 pt-32 pb-20">
 
-      {/* QR SCANNER */}
+      {/* =====================================================
+          QR SCANNER
+      ===================================================== */}
+
       {showScanner && (
         <QRScanner
           onScanSuccess={handleScanSuccess}
@@ -65,15 +114,23 @@ export default function ProductDetails() {
         />
       )}
 
+
       <div className="mx-auto max-w-5xl">
 
-        {/* PAGE HEADER */}
+        {/* ===================================================
+            PAGE HEADER
+        =================================================== */}
+
         <div className="mb-10 text-center">
 
           <div className="mb-4 flex justify-center">
+
             <div className="rounded-2xl bg-emerald-500/20 p-4">
+
               <ScanLine className="h-8 w-8 text-emerald-300" />
+
             </div>
+
           </div>
 
           <h1 className="text-4xl font-bold text-white">
@@ -86,7 +143,11 @@ export default function ProductDetails() {
 
         </div>
 
-        {/* SCANNED QR */}
+
+        {/* ===================================================
+            SCANNED QR IDENTIFIER
+        =================================================== */}
+
         {scannedCode && (
           <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
 
@@ -94,22 +155,26 @@ export default function ProductDetails() {
               SCANNED QR IDENTIFIER
             </p>
 
-            <p className="mt-2 font-mono text-lg font-semibold text-emerald-300">
+            <p className="mt-2 break-all font-mono text-lg font-semibold text-emerald-300">
               {scannedCode}
             </p>
 
           </div>
         )}
 
-        {/* ========================= */}
-        {/* PRODUCT FOUND */}
-        {/* ========================= */}
+
+        {/* ===================================================
+            PRODUCT FOUND
+        =================================================== */}
 
         {product && (
 
           <div className="overflow-hidden rounded-3xl border border-emerald-400/20 bg-black/30 shadow-2xl backdrop-blur-xl">
 
-            {/* VERIFICATION HEADER */}
+            {/* -------------------------------------------------
+                VERIFICATION HEADER
+            ------------------------------------------------- */}
+
             <div className="flex flex-col gap-5 border-b border-white/10 p-6 md:flex-row md:items-center md:justify-between">
 
               <div>
@@ -124,6 +189,9 @@ export default function ProductDetails() {
 
               </div>
 
+
+              {/* Verification Status */}
+
               <div className="flex w-fit items-center gap-2 rounded-full bg-emerald-500/15 px-4 py-2 text-emerald-300">
 
                 <ShieldCheck className="h-5 w-5" />
@@ -136,7 +204,11 @@ export default function ProductDetails() {
 
             </div>
 
-            {/* PRODUCT DETAILS */}
+
+            {/* -------------------------------------------------
+                PRODUCT DETAILS
+            ------------------------------------------------- */}
+
             <div className="grid gap-4 p-6 md:grid-cols-2">
 
               <DetailCard
@@ -189,7 +261,11 @@ export default function ProductDetails() {
 
             </div>
 
-            {/* LAST UPDATED */}
+
+            {/* -------------------------------------------------
+                LAST UPDATED
+            ------------------------------------------------- */}
+
             <div className="border-t border-white/10 px-6 py-5">
 
               <p className="text-sm text-white/40">
@@ -202,12 +278,24 @@ export default function ProductDetails() {
 
             </div>
 
-            {/* SCAN AGAIN */}
+
+            {/* -------------------------------------------------
+                SCAN ANOTHER PRODUCT
+            ------------------------------------------------- */}
+
             <div className="border-t border-white/10 p-6">
 
               <button
+                type="button"
                 onClick={scanAnother}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400"
+                className="
+                  flex w-full items-center justify-center gap-2
+                  rounded-xl bg-emerald-500 px-5 py-3
+                  font-semibold text-black
+                  transition
+                  hover:bg-emerald-400
+                  active:scale-[0.99]
+                "
               >
 
                 <RefreshCw className="h-5 w-5" />
@@ -222,9 +310,10 @@ export default function ProductDetails() {
 
         )}
 
-        {/* ========================= */}
-        {/* PRODUCT NOT FOUND */}
-        {/* ========================= */}
+
+        {/* ===================================================
+            PRODUCT NOT FOUND
+        =================================================== */}
 
         {notFound && (
 
@@ -240,21 +329,33 @@ export default function ProductDetails() {
 
             </div>
 
+
             <h2 className="text-2xl font-bold text-white">
               Product Not Found
             </h2>
+
 
             <p className="mx-auto mt-3 max-w-lg text-white/60">
               No product information is available for this QR identifier.
             </p>
 
-            <p className="mt-4 font-mono text-sm text-red-300">
+
+            <p className="mt-4 break-all font-mono text-sm text-red-300">
               {scannedCode}
             </p>
 
+
             <button
+              type="button"
               onClick={scanAnother}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20"
+              className="
+                mt-6 inline-flex items-center gap-2
+                rounded-xl bg-white/10 px-6 py-3
+                font-semibold text-white
+                transition
+                hover:bg-white/20
+                active:scale-[0.99]
+              "
             >
 
               <RefreshCw className="h-5 w-5" />
@@ -267,9 +368,10 @@ export default function ProductDetails() {
 
         )}
 
-        {/* ========================= */}
-        {/* READY TO SCAN */}
-        {/* ========================= */}
+
+        {/* ===================================================
+            READY TO SCAN
+        =================================================== */}
 
         {!showScanner &&
           !product &&
@@ -279,17 +381,28 @@ export default function ProductDetails() {
 
               <ScanLine className="mx-auto h-12 w-12 text-emerald-300" />
 
+
               <h2 className="mt-4 text-2xl font-bold text-white">
                 Ready to Verify
               </h2>
+
 
               <p className="mt-2 text-white/50">
                 Scan a product QR code to continue.
               </p>
 
+
               <button
+                type="button"
                 onClick={() => setShowScanner(true)}
-                className="mt-6 rounded-xl bg-emerald-500 px-6 py-3 font-semibold text-black"
+                className="
+                  mt-6 rounded-xl
+                  bg-emerald-500 px-6 py-3
+                  font-semibold text-black
+                  transition
+                  hover:bg-emerald-400
+                  active:scale-[0.99]
+                "
               >
                 Open QR Scanner
               </button>
@@ -305,23 +418,41 @@ export default function ProductDetails() {
 }
 
 
-/* ================================= */
-/* DETAIL CARD                       */
-/* ================================= */
+/* =========================================================
+   DETAIL CARD
+========================================================= */
 
-function DetailCard({ icon: Icon, label, value }) {
+function DetailCard({
+  icon: Icon,
+  label,
+  value,
+}) {
 
   return (
 
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:bg-white/10">
+    <div
+      className="
+        rounded-2xl
+        border border-white/10
+        bg-white/5
+        p-5
+        transition
+        hover:bg-white/10
+      "
+    >
 
       <div className="flex items-start gap-4">
 
-        <div className="rounded-xl bg-emerald-500/10 p-3">
+        {/* Icon */}
+
+        <div className="shrink-0 rounded-xl bg-emerald-500/10 p-3">
 
           <Icon className="h-5 w-5 text-emerald-300" />
 
         </div>
+
+
+        {/* Content */}
 
         <div className="min-w-0">
 

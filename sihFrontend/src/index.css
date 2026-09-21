@@ -13,15 +13,26 @@
     color-scheme: dark;
   }
 
-  body {
-    background-color: #0c1f12;
-    color: #F4F7F2;
+  html {
+    scroll-behavior: smooth;
+  }
 
-    font-family: 'Manrope', 'Inter', sans-serif;
+  body {
+    margin: 0;
+
+    background-color: #0c1f12;
+    color: #f4f7f2;
+
+    font-family: "Manrope", "Inter", sans-serif;
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
     text-rendering: optimizeLegibility;
+  }
+
+  * {
+    box-sizing: border-box;
   }
 
 }
@@ -38,7 +49,7 @@
 
   z-index: -20;
 
-  background-image: url('/assets/bg-nature.jpg');
+  background-image: url("/assets/bg-nature.jpg");
 
   background-size: cover;
   background-position: center center;
@@ -52,15 +63,14 @@
 
   transition:
     transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  pointer-events: none;
 }
 
 
-/*
-   Very light overlay.
-
-   The background must remain clearly visible
-   through the glass surfaces.
-*/
+/* =========================================================
+   BACKGROUND OVERLAY
+   ========================================================= */
 
 .bg-nature-overlay {
 
@@ -89,25 +99,12 @@
 
   position: relative;
 
-  /*
-     Very transparent white glass.
-
-     The background underneath remains visible.
-  */
-
   background:
     linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.075) 0%,
       rgba(255, 255, 255, 0.035) 100%
     );
-
-  /*
-     CLEAR iOS GLASS
-
-     Keep both properties identical so Chrome,
-     Edge and Safari render the same effect.
-  */
 
   backdrop-filter:
     blur(3px)
@@ -117,19 +114,11 @@
     blur(3px)
     saturate(100%);
 
-  /*
-     Thin glass border.
-  */
-
   border:
     1px solid rgba(255, 255, 255, 0.14);
 
   border-top:
     1px solid rgba(255, 255, 255, 0.24);
-
-  /*
-     Soft floating shadow.
-  */
 
   box-shadow:
 
@@ -142,24 +131,21 @@
     inset 0 -1px 0
       rgba(255, 255, 255, 0.025);
 
-  border-radius:
-    1.5rem;
+  border-radius: 1.5rem;
 
-  overflow:
-    hidden;
+  overflow: hidden;
 }
 
 
-/*
-   Very subtle glass reflection.
-*/
+/* =========================================================
+   GLASS REFLECTION
+   ========================================================= */
 
 .liquid-glass-panel::before {
 
-  content: '';
+  content: "";
 
   position: absolute;
-
   inset: 0;
 
   background:
@@ -170,8 +156,7 @@
       transparent 100%
     );
 
-  pointer-events:
-    none;
+  pointer-events: none;
 }
 
 
@@ -183,16 +168,8 @@
 
   position: relative;
 
-  /*
-     Almost transparent surface.
-  */
-
   background:
     rgba(255, 255, 255, 0.055);
-
-  /*
-     Same Clear glass treatment.
-  */
 
   backdrop-filter:
     blur(3px)
@@ -202,19 +179,11 @@
     blur(3px)
     saturate(100%);
 
-  /*
-     Thin translucent edge.
-  */
-
   border:
     1px solid rgba(255, 255, 255, 0.11);
 
   border-top:
     1px solid rgba(255, 255, 255, 0.20);
-
-  /*
-     Soft depth.
-  */
 
   box-shadow:
 
@@ -224,16 +193,14 @@
     inset 0 1px 0
       rgba(255, 255, 255, 0.11);
 
-  border-radius:
-    1.25rem;
+  border-radius: 1.25rem;
 
   transition:
     background 0.3s ease,
     border-color 0.3s ease,
     box-shadow 0.3s ease;
 
-  overflow:
-    hidden;
+  overflow: hidden;
 }
 
 
@@ -269,8 +236,7 @@
   width: 140px;
   height: 140px;
 
-  border-radius:
-    50%;
+  border-radius: 50%;
 
   background:
     radial-gradient(
@@ -292,14 +258,10 @@
     0 16px 35px
       rgba(3, 14, 7, 0.4);
 
-  display:
-    flex;
+  display: flex;
 
-  align-items:
-    center;
-
-  justify-content:
-    center;
+  align-items: center;
+  justify-content: center;
 
   animation:
     orbFloat 6s ease-in-out infinite;
@@ -310,11 +272,9 @@
 
   position: absolute;
 
-  inset:
-    -10px;
+  inset: -10px;
 
-  border-radius:
-    50%;
+  border-radius: 50%;
 
   border:
     1px solid rgba(255, 255, 255, 0.12);
@@ -325,11 +285,9 @@
 
   position: absolute;
 
-  inset:
-    12px;
+  inset: 12px;
 
-  border-radius:
-    50%;
+  border-radius: 50%;
 
   border:
     1px solid rgba(255, 255, 255, 0.16);
@@ -340,13 +298,11 @@
 
   0%,
   100% {
-    transform:
-      translateY(0);
+    transform: translateY(0);
   }
 
   50% {
-    transform:
-      translateY(-6px);
+    transform: translateY(-6px);
   }
 
 }
@@ -358,19 +314,8 @@
 
 .liquid-nav-capsule {
 
-  /*
-     Clear transparent surface.
-
-     IMPORTANT:
-     No dark green background here.
-  */
-
   background:
     rgba(255, 255, 255, 0.065);
-
-  /*
-     Same Clear glass treatment as the main panel.
-  */
 
   backdrop-filter:
     blur(3px)
@@ -380,19 +325,11 @@
     blur(3px)
     saturate(100%);
 
-  /*
-     Thin glass edge.
-  */
-
   border:
     1px solid rgba(255, 255, 255, 0.13);
 
   border-top:
     1px solid rgba(255, 255, 255, 0.25);
-
-  /*
-     Soft floating shadow.
-  */
 
   box-shadow:
 
@@ -405,8 +342,7 @@
     inset 0 -1px 0
       rgba(255, 255, 255, 0.025);
 
-  border-radius:
-    9999px;
+  border-radius: 9999px;
 
   transition:
     background 0.3s ease,
@@ -415,20 +351,18 @@
 }
 
 
-/*
-   Navbar reflection.
-*/
+/* =========================================================
+   NAVBAR REFLECTION
+   ========================================================= */
 
 .liquid-nav-capsule::before {
 
-  content: '';
+  content: "";
 
   position: absolute;
-
   inset: 0;
 
-  border-radius:
-    inherit;
+  border-radius: inherit;
 
   background:
     linear-gradient(
@@ -437,16 +371,13 @@
       transparent 35%
     );
 
-  pointer-events:
-    none;
+  pointer-events: none;
 }
 
 
-/*
-   Navbar when scrolling.
-
-   Slightly stronger surface, but still CLEAR.
-*/
+/* =========================================================
+   NAVBAR SCROLLED STATE
+   ========================================================= */
 
 .liquid-nav-capsule-scrolled {
 
@@ -495,14 +426,11 @@
       rgba(35, 75, 45, 0.84) 100%
     );
 
-  color:
-    #F4F7F2;
+  color: #f4f7f2;
 
-  font-weight:
-    700;
+  font-weight: 700;
 
-  border-radius:
-    9999px;
+  border-radius: 9999px;
 
   border:
     1px solid rgba(255, 255, 255, 0.12);
@@ -523,8 +451,7 @@
     background 0.18s ease,
     box-shadow 0.18s ease;
 
-  letter-spacing:
-    0.01em;
+  letter-spacing: 0.01em;
 }
 
 
@@ -545,8 +472,7 @@
     inset 0 1px 0
       rgba(255, 255, 255, 0.30);
 
-  transform:
-    translateY(-1px);
+  transform: translateY(-1px);
 }
 
 
@@ -563,8 +489,7 @@
     inset 0 2px 5px
       rgba(0, 0, 0, 0.22);
 
-  transform:
-    translateY(1px);
+  transform: translateY(1px);
 }
 
 
@@ -576,21 +501,14 @@
 
   position: relative;
 
-  /*
-     Clear glass instead of heavy green.
-  */
-
   background:
     rgba(255, 255, 255, 0.065);
 
-  color:
-    #F4F7F2;
+  color: #f4f7f2;
 
-  font-weight:
-    700;
+  font-weight: 700;
 
-  border-radius:
-    9999px;
+  border-radius: 9999px;
 
   border:
     1px solid rgba(255, 255, 255, 0.12);
@@ -634,8 +552,7 @@
     inset 0 1px 0
       rgba(255, 255, 255, 0.20);
 
-  transform:
-    translateY(-1px);
+  transform: translateY(-1px);
 }
 
 
@@ -645,12 +562,10 @@
     rgba(255, 255, 255, 0.055);
 
   box-shadow:
-
     inset 0 2px 5px
       rgba(0, 0, 0, 0.18);
 
-  transform:
-    translateY(1px);
+  transform: translateY(1px);
 }
 
 
@@ -669,14 +584,11 @@
       #eaa000 100%
     );
 
-  color:
-    #0c1f12;
+  color: #0c1f12;
 
-  font-weight:
-    800;
+  font-weight: 800;
 
-  border-radius:
-    0.85rem;
+  border-radius: 0.85rem;
 
   border:
     1px solid rgba(100, 55, 0, 0.25);
@@ -716,8 +628,7 @@
     inset 0 1.5px 0
       rgba(255, 255, 220, 0.62);
 
-  transform:
-    translateY(-1px);
+  transform: translateY(-1px);
 }
 
 
@@ -731,25 +642,20 @@
     );
 
   box-shadow:
-
     inset 0 2px 6px
       rgba(100, 55, 0, 0.30);
 
-  transform:
-    translateY(1px);
+  transform: translateY(1px);
 }
 
 
 .btn-saffron-liquid:disabled {
 
-  opacity:
-    0.45;
+  opacity: 0.45;
 
-  cursor:
-    not-allowed;
+  cursor: not-allowed;
 
-  transform:
-    none;
+  transform: none;
 }
 
 
@@ -758,10 +664,6 @@
    ========================================================= */
 
 .liquid-input {
-
-  /*
-     Transparent glass input.
-  */
 
   background:
     rgba(255, 255, 255, 0.055);
@@ -780,11 +682,9 @@
   border-top:
     1px solid rgba(255, 255, 255, 0.20);
 
-  color:
-    #FFFFFF;
+  color: #ffffff;
 
-  border-radius:
-    0.85rem;
+  border-radius: 0.85rem;
 
   padding:
     0.75rem 1rem;
@@ -802,8 +702,7 @@
 
 .liquid-input:focus {
 
-  outline:
-    none;
+  outline: none;
 
   background:
     rgba(255, 255, 255, 0.075);
@@ -827,11 +726,8 @@
 
 ::-webkit-scrollbar {
 
-  width:
-    7px;
-
-  height:
-    7px;
+  width: 7px;
+  height: 7px;
 }
 
 
@@ -847,8 +743,7 @@
   background:
     rgba(255, 255, 255, 0.16);
 
-  border-radius:
-    4px;
+  border-radius: 4px;
 }
 
 
@@ -857,39 +752,199 @@
   background:
     rgba(232, 163, 23, 0.50);
 }
-/* ============================================================
-   JAGRUK SWADESH QR CAMERA
-   ============================================================ */
+
+
+/* =========================================================
+   JAGRUK SWADESH QR SCANNER
+   ========================================================= */
+
+/*
+   IMPORTANT:
+   These dimensions are intentionally aligned with
+   QRScanner.jsx.
+
+   The scanner component uses a 600px camera viewport,
+   so we do not use 65vh here.
+*/
 
 #jagruk-swadesh-qr-reader {
-  width: 100% !important;
-  height: 65vh !important;
-  min-height: 500px !important;
-  max-height: 700px !important;
-  overflow: hidden !important;
+
   position: relative !important;
+
+  width: 100% !important;
+
+  height: 600px !important;
+
+  min-height: 600px !important;
+
+  max-height: 600px !important;
+
+  overflow: hidden !important;
+
   background: #000 !important;
 }
 
+
+/* =========================================================
+   QR CAMERA VIDEO
+   ========================================================= */
+
 #jagruk-swadesh-qr-reader video {
+
+  position: absolute !important;
+
+  top: 0 !important;
+  left: 0 !important;
+
   width: 100% !important;
-  height: 100% !important;
+
+  height: 600px !important;
+
   min-width: 100% !important;
-  min-height: 100% !important;
+
+  min-height: 600px !important;
+
+  max-width: none !important;
+
+  max-height: 600px !important;
+
   object-fit: cover !important;
+
   display: block !important;
+
+  background: #000 !important;
 }
+
+
+/* =========================================================
+   QR SCAN REGION
+   ========================================================= */
 
 #jagruk-swadesh-qr-reader__scan_region {
+
+  position: absolute !important;
+
+  inset: 0 !important;
+
   width: 100% !important;
-  height: 100% !important;
+
+  height: 600px !important;
+
+  min-height: 600px !important;
+
+  max-height: 600px !important;
+
   border: none !important;
+
+  overflow: hidden !important;
 }
+
+
+/* =========================================================
+   QR DASHBOARD
+   ========================================================= */
 
 #jagruk-swadesh-qr-reader__dashboard {
+
   display: none !important;
 }
 
+
 #jagruk-swadesh-qr-reader__dashboard_section {
+
   display: none !important;
+}
+
+
+/* =========================================================
+   QR CAMERA MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  #jagruk-swadesh-qr-reader {
+
+    height: 500px !important;
+
+    min-height: 500px !important;
+
+    max-height: 500px !important;
+  }
+
+  #jagruk-swadesh-qr-reader video {
+
+    height: 500px !important;
+
+    min-height: 500px !important;
+
+    max-height: 500px !important;
+  }
+
+  #jagruk-swadesh-qr-reader__scan_region {
+
+    height: 500px !important;
+
+    min-height: 500px !important;
+
+    max-height: 500px !important;
+  }
+
+}
+
+
+/* =========================================================
+   QR CAMERA SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 480px) {
+
+  #jagruk-swadesh-qr-reader {
+
+    height: 430px !important;
+
+    min-height: 430px !important;
+
+    max-height: 430px !important;
+  }
+
+  #jagruk-swadesh-qr-reader video {
+
+    height: 430px !important;
+
+    min-height: 430px !important;
+
+    max-height: 430px !important;
+  }
+
+  #jagruk-swadesh-qr-reader__scan_region {
+
+    height: 430px !important;
+
+    min-height: 430px !important;
+
+    max-height: 430px !important;
+  }
+
+}
+
+
+/* =========================================================
+   ACCESSIBILITY / REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+
+    scroll-behavior: auto !important;
+
+    animation-duration: 0.01ms !important;
+
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
+  }
+
 }
