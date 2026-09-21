@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Routes,
+  Route,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChatbotIntegrationModal from './components/ChatbotIntegrationModal';
 import CursorGlow from './components/CursorGlow';
+import ProductDetails from './components/ProductDetails';
+
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Home from './pages/Home';
@@ -14,29 +22,61 @@ import SignUp from './pages/SignUp';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Chatbot from './pages/Chatbot';
 
-// Scroll to top component on route change
+
+// ============================================================
+// SCROLL TO TOP
+// ============================================================
+
 function ScrollToTop() {
   const { pathname } = useLocation();
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+
   return null;
 }
 
+
+// ============================================================
+// MAIN LAYOUT
+// ============================================================
+
 function MainLayout() {
   const [isChatbotModalOpen, setIsChatbotModalOpen] = useState(false);
-  const { isAuthenticated, pendingChatbotAccess, setPendingChatbotAccess } = useAuth();
+
+  const {
+    isAuthenticated,
+    pendingChatbotAccess,
+    setPendingChatbotAccess,
+  } = useAuth();
+
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
   const isChatbotPage = pathname === '/chatbot';
 
-  // If user just logged in after trying to access chatbot, open modal automatically or navigate to chatbot
+
+  // ==========================================================
+  // HANDLE PENDING CHATBOT ACCESS
+  // ==========================================================
+
   useEffect(() => {
     if (isAuthenticated && pendingChatbotAccess) {
       navigate('/chatbot');
       setPendingChatbotAccess(false);
     }
-  }, [isAuthenticated, pendingChatbotAccess, setPendingChatbotAccess, navigate]);
+  }, [
+    isAuthenticated,
+    pendingChatbotAccess,
+    setPendingChatbotAccess,
+    navigate,
+  ]);
+
+
+  // ==========================================================
+  // OPEN CHATBOT
+  // ==========================================================
 
   const handleOpenChatbotModal = () => {
     if (isAuthenticated) {
@@ -47,52 +87,231 @@ function MainLayout() {
     }
   };
 
+
+  // ==========================================================
+  // CLOSE CHATBOT MODAL
+  // ==========================================================
+
   const handleCloseChatbotModal = () => {
     setIsChatbotModalOpen(false);
   };
 
-  return (
-    <div className={`relative flex flex-col overflow-x-hidden ${isChatbotPage ? 'h-screen overflow-hidden' : 'min-h-screen justify-between'}`}>
-      
-      {/* 1. PRIMARY GREEN ATMOSPHERIC BACKGROUND LAYER */}
-      <div className="bg-nature-environment" aria-hidden="true" />
-      <div className="bg-nature-overlay" aria-hidden="true" />
 
-      {/* 2. SUBTLE CURSOR FOLLOWING LIQUID AURA */}
+  // ==========================================================
+  // MAIN LAYOUT
+  // ==========================================================
+
+  return (
+    <div
+      className={`
+        relative
+        flex
+        flex-col
+        overflow-x-hidden
+        ${
+          isChatbotPage
+            ? 'h-screen overflow-hidden'
+            : 'min-h-screen justify-between'
+        }
+      `}
+    >
+
+      {/* ======================================================
+          1. PRIMARY GREEN ATMOSPHERIC BACKGROUND
+      ====================================================== */}
+
+      <div
+        className="bg-nature-environment"
+        aria-hidden="true"
+      />
+
+      <div
+        className="bg-nature-overlay"
+        aria-hidden="true"
+      />
+
+
+      {/* ======================================================
+          2. CURSOR FOLLOWING LIQUID AURA
+      ====================================================== */}
+
       <CursorGlow />
 
-      {/* Scroll Restorer */}
+
+      {/* ======================================================
+          3. SCROLL RESTORER
+      ====================================================== */}
+
       <ScrollToTop />
 
-      {/* 3. NAVBAR */}
-      <Navbar onOpenChatbotModal={handleOpenChatbotModal} />
 
-      {/* 4. MAIN ROUTED CONTENT */}
-      <main className={`flex-grow ${isChatbotPage ? 'flex flex-col min-h-0' : ''}`}>
+      {/* ======================================================
+          4. NAVBAR
+      ====================================================== */}
+
+      <Navbar
+        onOpenChatbotModal={handleOpenChatbotModal}
+      />
+
+
+      {/* ======================================================
+          5. MAIN ROUTED CONTENT
+      ====================================================== */}
+
+      <main
+        className={`
+          flex-grow
+          ${
+            isChatbotPage
+              ? 'flex flex-col min-h-0'
+              : ''
+          }
+        `}
+      >
+
         <Routes>
-          <Route path="/" element={<Home onOpenChatbotModal={handleOpenChatbotModal} />} />
-          <Route path="/explore" element={<Explore onOpenChatbotModal={handleOpenChatbotModal} />} />
-          <Route path="/about" element={<About onOpenChatbotModal={handleOpenChatbotModal} />} />
-          <Route path="/chatbot" element={<Chatbot />} />
-          <Route path="/login" element={<Login onOpenChatbotModal={() => navigate('/chatbot')} />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
+
+          {/* ==================================================
+              HOME
+          ================================================== */}
+
+          <Route
+            path="/"
+            element={
+              <Home
+                onOpenChatbotModal={handleOpenChatbotModal}
+              />
+            }
+          />
+
+
+          {/* ==================================================
+              EXPLORE
+          ================================================== */}
+
+          <Route
+            path="/explore"
+            element={
+              <Explore
+                onOpenChatbotModal={handleOpenChatbotModal}
+              />
+            }
+          />
+
+
+          {/* ==================================================
+              ABOUT
+          ================================================== */}
+
+          <Route
+            path="/about"
+            element={
+              <About
+                onOpenChatbotModal={handleOpenChatbotModal}
+              />
+            }
+          />
+
+
+          {/* ==================================================
+              CHATBOT
+          ================================================== */}
+
+          <Route
+            path="/chatbot"
+            element={<Chatbot />}
+          />
+
+
+          {/* ==================================================
+              PRODUCT DETAILS / QR VERIFICATION
+              
+              ProductDetails.jsx is located at:
+              
+              src/components/ProductDetails.jsx
+          ================================================== */}
+
+          <Route
+            path="/product-details"
+            element={<ProductDetails />}
+          />
+
+
+          {/* ==================================================
+              LOGIN
+          ================================================== */}
+
+          <Route
+            path="/login"
+            element={
+              <Login
+                onOpenChatbotModal={() =>
+                  navigate('/chatbot')
+                }
+              />
+            }
+          />
+
+
+          {/* ==================================================
+              SIGN UP
+          ================================================== */}
+
+          <Route
+            path="/signup"
+            element={<SignUp />}
+          />
+
+
+          {/* ==================================================
+              PRIVACY POLICY
+          ================================================== */}
+
+          <Route
+            path="/privacy"
+            element={<PrivacyPolicy />}
+          />
+
         </Routes>
+
       </main>
 
-      {/* 5. FOOTER */}
-      {!isChatbotPage && <Footer onOpenChatbotModal={handleOpenChatbotModal} />}
 
-      {/* 6. CHATBOT INTEGRATION CTA MODAL (PROTECTED) */}
+      {/* ======================================================
+          6. FOOTER
+          
+          Footer is hidden on the chatbot page because the
+          chatbot uses the full screen.
+      ====================================================== */}
+
+      {!isChatbotPage && (
+        <Footer
+          onOpenChatbotModal={handleOpenChatbotModal}
+        />
+      )}
+
+
+      {/* ======================================================
+          7. CHATBOT INTEGRATION MODAL
+          
+          Only authenticated users can access this modal.
+      ====================================================== */}
+
       {isAuthenticated && (
         <ChatbotIntegrationModal
           isOpen={isChatbotModalOpen}
           onClose={handleCloseChatbotModal}
         />
       )}
+
     </div>
   );
 }
+
+
+// ============================================================
+// APP
+// ============================================================
 
 export default function App() {
   return (

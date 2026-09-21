@@ -857,3 +857,39 @@
   background:
     rgba(232, 163, 23, 0.50);
 }
+/* ============================================================
+   JAGRUK SWADESH QR CAMERA
+   ============================================================ */
+
+#jagruk-swadesh-qr-reader {
+  width: 100% !important;
+  height: 65vh !important;
+  min-height: 500px !important;
+  max-height: 700px !important;
+  overflow: hidden !important;
+  position: relative !important;
+  background: #000 !important;
+}
+
+#jagruk-swadesh-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+#jagruk-swadesh-qr-reader__scan_region {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+}
+
+#jagruk-swadesh-qr-reader__dashboard {
+  display: none !important;
+}
+
+#jagruk-swadesh-qr-reader__dashboard_section {
+  display: none !important;
+}
